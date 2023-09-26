@@ -45,14 +45,6 @@ class GameType(Enum):
     CompVsComp = 3
 
 
-class ErrorMoveType(Enum):
-    """Every move error"""
-
-    Occupied = 0
-    CombatEngaged = 1
-    InvaliedDirection = 2
-
-
 ##############################################################################################################
 
 
@@ -356,6 +348,18 @@ class Game:
             or unit.type == UnitType.Firewall
             or unit.type == UnitType.Program
         ):
+            # check if the source unit is the attacker
+            if unit.player == Player.Attacker:
+                # check if source unit is only moving up or left
+                if not (
+                    coords.dst == Coord(coords.src.row - 1, coords.src.col)
+                    or coords.dst == Coord(coords.src.row, coords.src.col - 1)
+                ):
+                    return (
+                        False,
+                        f"{unit} can only move up or left by one! Try again.\n",
+                    )
+
             # check if unit is engaged in battle
             for adj_coord in coords.src.iter_adjacent():
                 adj_unit = self.get(adj_coord)
