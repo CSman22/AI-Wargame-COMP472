@@ -348,9 +348,8 @@ class Game:
             or unit.type == UnitType.Firewall
             or unit.type == UnitType.Program
         ):
-            # check if the source unit is the attacker
             if unit.player == Player.Attacker:
-                # check if source unit is only moving up or left
+                # check if attacking unit is only moving up or left
                 if not (
                     coords.dst == Coord(coords.src.row - 1, coords.src.col)
                     or coords.dst == Coord(coords.src.row, coords.src.col - 1)
@@ -358,6 +357,17 @@ class Game:
                     return (
                         False,
                         f"{unit} can only move up or left by one! Try again.\n",
+                    )
+
+            else:
+                # check if defending unit is only moving down or right
+                if not (
+                    coords.dst == Coord(coords.src.row + 1, coords.src.col)
+                    or coords.dst == Coord(coords.src.row, coords.src.col + 1)
+                ):
+                    return (
+                        False,
+                        f"{unit} can only move down or right by one! Try again.\n",
                     )
 
             # check if unit is engaged in battle
