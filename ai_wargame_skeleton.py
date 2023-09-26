@@ -378,6 +378,18 @@ class Game:
                         False,
                         f"{unit} is engaged in battle with {adj_unit}! Try again.\n",
                     )
+        else:
+            # Check if the virus or the tech is moving left, up, right or down by one
+            if not (
+                coords.dst == Coord(coords.src.row + 1, coords.src.col)
+                or coords.dst == Coord(coords.src.row, coords.src.col + 1)
+                or coords.dst == Coord(coords.src.row - 1, coords.src.col)
+                or coords.dst == Coord(coords.src.row, coords.src.col - 1)
+            ):
+                return (
+                    False,
+                    f"{unit} can only move left, up, right or down by one! Try again.\n",
+                )
         # Check destination space
         unit = self.get(coords.dst)
         if unit is not None:
