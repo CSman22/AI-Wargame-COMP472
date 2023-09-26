@@ -527,7 +527,36 @@ class Game:
         except Exception as error:
             print(f"Broker error: {error}")
         return None
+    
+    def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
+        """Perform self-destruct action for the unit at the given coordinates."""
+        unit = self.get(coord)
+        if unit is None or not unit.is_alive():
+            # No unit to self-destruct
+            return False, "Invalid self-destruct attempt"  
+        
+        # Apply damage to surrounding units
+        for adjacent_coord in coord.iter_range(1):
+            if self.is_valid_coord(adjacent_coord):
+                self.mod_health(adjacent_coord, -2)
+        
+        # Remove the self-destructed unit from the board
+        self.set(coord, None)
+        return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
 
+    def has_winner(self) -> Player | None:
+        """Check if the game is over and returns winner"""
+        if self.options.max_turns is not None and self.turns_played >= self.options.max_turns:
+            return Player.Defender
+        elif not self._attacker_has_ai and not self._defender_has_ai:
+            return Player.Defender  # Defender wins in case of a tie
+        elif not self._attacker_has_ai:
+            return Player.Defender
+        elif not self._defender_has_ai:
+            return Player.Attacker
+        # No winner yet
+        return None 
+    
 ##############################################################################################################
 
 def main():
