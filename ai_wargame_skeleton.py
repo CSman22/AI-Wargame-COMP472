@@ -432,13 +432,14 @@ class Game:
         """Check if the game is over and returns winner"""
         if self.options.max_turns is not None and self.turns_played >= self.options.max_turns:
             return Player.Defender
-        elif self._attacker_has_ai:
-            if self._defender_has_ai:
-                return None
-            else:
-                return Player.Attacker    
-        elif self._defender_has_ai:
+        elif not self._attacker_has_ai:
             return Player.Defender
+        elif not self._defender_has_ai:
+            return Player.Attacker
+        elif not any(self.move_candidates()):  # Check if no action is available to the current player
+            return Player.Defender if self.next_player == Player.Attacker else Player.Attacker
+        else:
+            return None
 
     def move_candidates(self) -> Iterable[CoordPair]:
         """Generate valid move candidates for the next player."""
@@ -544,18 +545,6 @@ class Game:
         self.set(coord, None)
         return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
 
-    def has_winner(self) -> Player | None:
-        """Check if the game is over and returns winner"""
-        if self.options.max_turns is not None and self.turns_played >= self.options.max_turns:
-            return Player.Defender
-        elif not self._attacker_has_ai and not self._defender_has_ai:
-            return Player.Defender  # Defender wins in case of a tie
-        elif not self._attacker_has_ai:
-            return Player.Defender
-        elif not self._defender_has_ai:
-            return Player.Attacker
-        # No winner yet
-        return None 
     
 ##############################################################################################################
 
