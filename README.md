@@ -18,4 +18,11 @@ AI Wargame1 is a 2-player game played by an attacker (a) and a defender (d) on a
 
 - Attacker: 1×AI, 2×Viruses, 2×Programs, 1×Firewall.
 - Defender: 1×AI, 2×Techs, 2×Firewalls, 1×Program.
-- Initial board configuration:
+
+|   | 0  | 1   | 2   | 3   | 4   |
+|---|-----|-----|-----|-----|-----|
+| A | dA9 | dT9 | dF9 |  .  |  .  |
+| B | dT9 | dP9 |  .  |  .  |  .  |
+| C | dF9 |  .  |  .  |  .  | aP9 |
+| D |  .  |  .  |  .  | aF9 | aV9 |
+| E |  .  |  .  | aP9 | aV9 | aA9 |
