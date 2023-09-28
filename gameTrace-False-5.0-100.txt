@@ -1,15 +1,20 @@
 1. The game parameters
-    a) Timeout (seconds): 5.0
-    b) Max number of turns: 100
-    c) Alpha-beta: False
-    d) Play Mode: Player 1 = H & Player 2 = H
-    e) Name of heuristic: 
-    
-2. The initial configuration of the board:
+a) Timeout (seconds): 5.0
+b) Max number of turns: 100
+c) Alpha-beta: False
+d) Play Mode: Player 1 = H & Player 2 = H
+e) Name of heuristic: 
 
+2. The initial configuration of the board:
 	 0   1   2   3   4  
 A: dA9 dT9 dF9  .   .  
 B: dT9 dP9  .   .   .  
 C: dF9  .   .   .  aP9 
 D:  .   .   .  aF9 aV9 
 E:  .   .  aP9 aV9 aA9 
+ 
+3. Action 
+3.1 Action info
+------------------------
+Turn #0
+Attacker

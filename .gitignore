@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Ignore files that start with "gameTrace"
+gameTrace*.txt
+
 # Distribution / packaging
 .Python
 build/

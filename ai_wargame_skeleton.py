@@ -416,10 +416,19 @@ class Game:
         """Pretty text representation of the game."""
         output = ""
         output += "------------------------------------\n"
-        output += f"Next player: {self.next_player.name}\n"
+        output += f"Turn: {self.next_player.name}\n"
         output += f"Turns played: {self.turns_played}\n"
         output += "\n   "
         output += self.board_to_string()
+
+        # record to file
+        global filename
+        actionInfo = "\n------------------------\n"
+        actionInfo += f"Turn #{self.turns_played}\n"
+        actionInfo += f"{self.next_player.name}\n"
+        with open(filename, "a") as file:
+            file.write(actionInfo)
+
         return output
 
     def board_to_string(self) -> str:
@@ -469,6 +478,7 @@ class Game:
 
     def human_turn(self):
         """Human player plays a move (or get via broker)."""
+        global filename
         while True:
             # Display a menu of actions
             print(f"Player {self.next_player.name}, choose an action:")
@@ -486,6 +496,13 @@ class Game:
                     if success:
                         print(result)
                         self.next_turn()
+
+                        # Record action to file
+                        actionInfo = f"Move from {chr(65 + mv.src.row)}{mv.src.col} to {chr(65 + mv.dst.row)}{mv.dst.col}\n"
+                        actionInfo += f"\t{self.board_to_string()}"
+                        with open(filename, "a") as file:
+                            file.write(actionInfo)
+
                         break
                     else:
                         print(result)
@@ -502,6 +519,13 @@ class Game:
                     if success:
                         print(result)
                         self.next_turn()
+
+                        # Record action to file
+                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
+                        actionInfo += f"\t{self.board_to_string()}"
+                        with open(filename, "a") as file:
+                            file.write(actionInfo)
+
                         break
                     else:
                         print("The attack is not valid! Try again.")
@@ -517,6 +541,13 @@ class Game:
                     if success:
                         print(result)
                         self.next_turn()
+
+                        # Record action to file
+                        actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.row} to {chr(65 + target.row)}{target.col}\n"
+                        actionInfo += f"\t{self.board_to_string()}"
+                        with open(filename, "a") as file:
+                            file.write(actionInfo)
+
                         break
                     else:
                         print("The repair action is not valid! Try again.")
@@ -529,6 +560,15 @@ class Game:
                     if success:
                         print(result)
                         self.next_turn()
+
+                        # Record action to file
+                        actionInfo = (
+                            f"Self-destruct from {chr(65 + unit.row)}{unit.row}\n"
+                        )
+                        actionInfo += f"\t{self.board_to_string()}"
+                        with open(filename, "a") as file:
+                            file.write(actionInfo)
+
                         break
                     else:
                         print("The self-destruct action is not valid! Try again.")
@@ -752,19 +792,20 @@ def main():
     global filename
     filename = f"gameTrace-{b}-{t}-{m}.txt"
 
-    game_parameters = f"""1. The game parameters
-    a) Timeout (seconds): {t}
-    b) Max number of turns: {m}
-    c) Alpha-beta: {b}
-    d) Play Mode: Player 1 = H & Player 2 = H
-    e) Name of heuristic: 
-    """
-    init_conf = (
-        f"\n2. The initial configuration of the board:\n\n\t{game.board_to_string()}"
-    )
-
+    game_parameters = ""
+    game_parameters += f"1. The game parameters\n"
+    game_parameters += f"a) Timeout (seconds): {t}\n"
+    game_parameters += f"b) Max number of turns: {m}\n"
+    game_parameters += f"c) Alpha-beta: {b}\n"
+    game_parameters += f"d) Play Mode: Player 1 = H & Player 2 = H\n"
+    game_parameters += f"e) Name of heuristic: \n"
+    init_conf = f"\n"
+    init_conf += f"2. The initial configuration of the board:\n"
+    init_conf += f"\t{game.board_to_string()} \n"
+    action = f"3. Action \n3.1 Action info"
+    # record information to file
     with open(filename, "w") as file:
-        file.write(game_parameters + init_conf)
+        file.write(game_parameters + init_conf + action)
 
     # the main game loop
     while True:
@@ -773,6 +814,13 @@ def main():
         winner = game.has_winner()
         if winner is not None:
             print(f"{winner.name} wins!")
+
+            # Record winner to file
+            winnerInfo = f"\n4. Game Result\n"
+            winnerInfo += f"{winner.name} wins in {game.turns_played} turns"
+            with open(filename, "a") as file:
+                file.write(winnerInfo)
+
             break
         if game.options.game_type == GameType.AttackerVsDefender:
             game.human_turn()
