@@ -583,60 +583,81 @@ class Game:
             print(f"Broker error: {error}")
         return None
 
+    # attack actions
     def attack(self, attacker_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
+        # Retrieve the units at the attacker and target coordinates
         attacker_unit = self.get(attacker_coord)
         target_unit = self.get(target_coord)
 
+        # Check if either the attacker or target unit is None, indicating an invalid attack attempt
         if attacker_unit is None or target_unit is None:
             return False, "Invalid attack attempt"
 
+        # Check if the attacker and target units belong to different players (are adversarial)
         if not attacker_unit.player.next() == target_unit.player:
             return False, "Units are not adversarial"
 
+        # Check if the attacker and target units are adjacent on the board
         if not self.is_adjacent(attacker_coord, target_coord):
             return False, "Units are not adjacent"
 
+        # Calculate and apply damage to the target unit based on the attacker unit's damage amount
         damage = attacker_unit.damage_amount(target_unit)
         target_unit.mod_health(-damage)
         self.remove_dead(target_coord)
 
-        # Bi-directional combat
+        # Bi-directional combat: Calculate and apply damage back to the attacker unit
         damage_back = target_unit.damage_amount(attacker_unit)
         attacker_unit.mod_health(-damage_back)
         self.remove_dead(attacker_coord)
 
+        # Return success message with details of the attack
         return (
             True,
             f"{attacker_unit.player.name}'s {attacker_unit.type.name} attacked {target_unit.player.name}'s {target_unit.type.name}",
         )
 
+    # repair actions
     def repair(self, repairer_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
+        # Retrieve the units at the repairer and target coordinates
         repairer_unit = self.get(repairer_coord)
         target_unit = self.get(target_coord)
 
+        # Check if either the repairer or target unit is None, indicating an invalid repair attempt
         if repairer_unit is None or target_unit is None:
             return False, "Invalid repair attempt"
 
+        # Check if the repairer and target units belong to the same player (are friendly)
         if not repairer_unit.player == target_unit.player:
             return False, "Units are not friendly"
 
+        # Check if the repairer and target units are adjacent on the board
         if not self.is_adjacent(repairer_coord, target_coord):
             return False, "Units are not adjacent"
 
+        # Calculate the repair amount and check if the repair action is valid
         repair_amount = repairer_unit.repair_amount(target_unit)
         if repair_amount == 0 or target_unit.health == 9:
             return False, "Invalid repair action"
 
+        # Apply the repair amount to the target unit's health
         target_unit.mod_health(repair_amount)
 
+        # Return success message with details of the repair action
         return (
             True,
             f"{repairer_unit.player.name}'s {repairer_unit.type.name} repaired {target_unit.player.name}'s {target_unit.type.name}",
         )
 
+    # Check if the coordinates are adjacent
     def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
-        return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
+        # Calculate the difference in rows and columns between the two coordinates
+        row_diff = abs(coord1.row - coord2.row)
+        col_diff = abs(coord1.col - coord2.col)
 
+        # Check if the sum of the row and column differences is 1, indicating that the coordinates are adjacent
+        # This is based on the Manhattan distance in a grid, where adjacent cells have a distance of 1
+        return row_diff + col_diff == 1
 
 ##############################################################################################################
 
