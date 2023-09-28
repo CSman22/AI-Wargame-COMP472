@@ -326,18 +326,11 @@ class Game:
                 else:
                     self._defender_has_ai = False
 
-    def mod_health(self, coord: Coord, health_delta: int):
-        """Modify health of unit at Coord (positive or negative delta)."""
-        target = self.get(coord)
-        if target is not None:
-            target.mod_health(health_delta)
-            self.remove_dead(coord)
-
     def is_valid_move(self, coords: CoordPair) -> tuple[bool, str]:
         """Validate a move expressed as a CoordPair. TODO: Check the move set of every unit"""
         # check if coordinate is within the board
         if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
-            return (False, "Invalid coordinates! Try again.\n")
+            return (False, "Coordinate not within board! Try again.\n")
         # Check whether source space is empty or belongs to current player
         unit = self.get(coords.src)
         if unit is None or unit.player != self.next_player:
@@ -405,6 +398,13 @@ class Game:
             return (True, "")
         return (False, msg)
 
+    def mod_health(self, coord: Coord, health_delta: int):
+        """Modify health of unit at Coord (positive or negative delta)."""
+        target = self.get(coord)
+        if target is not None:
+            target.mod_health(health_delta)
+            self.remove_dead(coord)
+
     def next_turn(self):
         """Transitions game to the next turn."""
         self.next_player = self.next_player.next()
@@ -414,8 +414,7 @@ class Game:
         """Pretty text representation of the game."""
         dim = self.options.dim
         output = ""
-        output += "------------------------------------\n"
-        output += f"Next player: {self.next_player.name}\n"
+        output += f"Turn: {self.next_player.name}\n"
         output += f"Turns played: {self.turns_played}\n"
         coord = Coord()
         output += "\n   "
@@ -454,41 +453,82 @@ class Game:
         while True:
             s = input(f"Player {self.next_player.name}, enter your move: ")
             coords = CoordPair.from_string(s)
-            if (
-                coords is not None
-                and self.is_valid_coord(coords.src)
-                and self.is_valid_coord(coords.dst)
-            ):
+            if coords is not None:
                 return coords
             else:
-                print("Invalid coordinates! Try again.\n")
+                print("Not a coordinate (e.g. c4 b4)! Try again.\n")
 
     def human_turn(self):
         """Human player plays a move (or get via broker)."""
-        if self.options.broker is not None:
-            print("Getting next move with auto-retry from game broker...")
-            while True:
-                mv = self.get_move_from_broker()
-                if mv is not None:
+        while True:
+            # Display a menu of actions
+            print(f"Player {self.next_player.name}, choose an action:")
+            print("1. Move")
+            print("2. Attack")
+            print("3. Repair")
+            print("4. Self-destruct")
+
+            try:
+                action_choice = int(input("Enter the number of your chosen action: "))
+
+                if action_choice == 1:
+                    mv = self.read_move()
                     (success, result) = self.perform_move(mv)
-                    print(f"Broker {self.next_player.name}: ", end="")
-                    print(result)
                     if success:
+                        print(result)
                         self.next_turn()
                         break
-                sleep(0.1)
-        else:
-            while True:
-                mv = self.read_move()
-                (success, result) = self.perform_move(mv)
-                if success:
-                    # print(f"Player {self.next_player.name}: ", end="")
-                    # print(result)
-                    self.next_turn()
-                    break
+                    else:
+                        print(result)
+                        # print("The move is not valid! Try again.")
+
+                elif action_choice == 2:
+                    attacker = Coord.from_string(
+                        input("Enter the attacker's coordinates: ")
+                    )
+                    target = Coord.from_string(
+                        input("Enter the target's coordinates: ")
+                    )
+                    (success, result) = self.attack(attacker, target)
+                    if success:
+                        print(result)
+                        self.next_turn()
+                        break
+                    else:
+                        print("The attack is not valid! Try again.")
+
+                elif action_choice == 3:
+                    repairer = Coord.from_string(
+                        input("Enter the repairer's coordinates: ")
+                    )
+                    target = Coord.from_string(
+                        input("Enter the target's coordinates: ")
+                    )
+                    (success, result) = self.repair(repairer, target)
+                    if success:
+                        print(result)
+                        self.next_turn()
+                        break
+                    else:
+                        print("The repair action is not valid! Try again.")
+
+                elif action_choice == 4:
+                    unit = Coord.from_string(
+                        input("Enter the unit's coordinates to self-destruct: ")
+                    )
+                    (success, result) = self.self_destruct(unit)
+                    if success:
+                        print(result)
+                        self.next_turn()
+                        break
+                    else:
+                        print("The self-destruct action is not valid! Try again.")
+
                 else:
-                    print(result)
-                    # print("The move is not valid! Try again.")
+                    print(f"Invalid choice! Please choose a number between 1 and 4.\n")
+
+            except ValueError:
+                print(f"Invalid input! Please enter a valid number.\n")
 
     def computer_turn(self) -> CoordPair | None:
         """Computer plays a move."""
@@ -516,16 +556,23 @@ class Game:
         """Check if the game is over and returns winner"""
         if (
             self.options.max_turns is not None
-            and self.turns_played >= self.options.max_turns
+            and self.turns_played > self.options.max_turns
         ):
             return Player.Defender
-        elif self._attacker_has_ai:
-            if self._defender_has_ai:
-                return None
-            else:
-                return Player.Attacker
-        elif self._defender_has_ai:
+        elif not self._attacker_has_ai:
             return Player.Defender
+        elif not self._defender_has_ai:
+            return Player.Attacker
+        elif not any(
+            self.move_candidates()
+        ):  # Check if no action is available to the current player
+            return (
+                Player.Defender
+                if self.next_player == Player.Attacker
+                else Player.Attacker
+            )
+        else:
+            return None
 
     def move_candidates(self) -> Iterable[CoordPair]:
         """Generate valid move candidates for the next player."""
@@ -534,7 +581,7 @@ class Game:
             move.src = src
             for dst in src.iter_adjacent():
                 move.dst = dst
-                if self.is_valid_move(move):  # TODO
+                if self.is_valid_move(move):
                     yield move.clone()
             move.dst = src
             yield move.clone()
@@ -544,9 +591,9 @@ class Game:
         move_candidates = list(self.move_candidates())
         random.shuffle(move_candidates)
         if len(move_candidates) > 0:
-            return (0, move_candidates[0], 1)
+            return 0, move_candidates[0], 1
         else:
-            return (0, None, 0)
+            return 0, None, 0
 
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
@@ -562,7 +609,9 @@ class Game:
         print()
         total_evals = sum(self.stats.evaluations_per_depth.values())
         if self.stats.total_seconds > 0:
-            print(f"Eval perf.: {total_evals/self.stats.total_seconds/1000:0.1f}k/s")
+            print(
+                f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s"
+            )
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
         return move
 
@@ -622,6 +671,26 @@ class Game:
         except Exception as error:
             print(f"Broker error: {error}")
         return None
+
+    def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
+        return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
+
+    def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
+        """Perform self-destruct action for the unit at the given coordinates."""
+        unit = self.get(coord)
+        if unit is None or not unit.is_alive():
+            # No unit to self-destruct
+            return False, "Invalid self-destruct attempt"
+
+        # Inflict 2 points of damage to all 8 surrounding units
+        for adjacent_coord in coord.iter_range(1):
+            if self.is_valid_coord(adjacent_coord):
+                self.mod_health(adjacent_coord, -2)
+
+        # Remove the self-destructed unit from the board
+        self.set(coord, None)
+
+        return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
 
 
 ##############################################################################################################
@@ -698,7 +767,6 @@ def main():
 
 
 ##############################################################################################################
-
 
 if __name__ == "__main__":
     main()
