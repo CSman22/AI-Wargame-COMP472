@@ -582,6 +582,60 @@ class Game:
         except Exception as error:
             print(f"Broker error: {error}")
         return None
+    
+    def attack(self, attacker_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
+        attacker_unit = self.get(attacker_coord)
+        target_unit = self.get(target_coord)
+
+        if attacker_unit is None or target_unit is None:
+            return False, "Invalid attack attempt"
+
+        if not attacker_unit.player.next() == target_unit.player:
+            return False, "Units are not adversarial"
+
+        if not self.is_adjacent(attacker_coord, target_coord):
+            return False, "Units are not adjacent"
+
+        damage = attacker_unit.damage_amount(target_unit)
+        target_unit.mod_health(-damage)
+        self.remove_dead(target_coord)
+
+        # Bi-directional combat
+        damage_back = target_unit.damage_amount(attacker_unit)
+        attacker_unit.mod_health(-damage_back)
+        self.remove_dead(attacker_coord)
+
+        return (
+            True,
+            f"{attacker_unit.player.name}'s {attacker_unit.type.name} attacked {target_unit.player.name}'s {target_unit.type.name}",
+        )
+
+    def repair(self, repairer_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
+        repairer_unit = self.get(repairer_coord)
+        target_unit = self.get(target_coord)
+
+        if repairer_unit is None or target_unit is None:
+            return False, "Invalid repair attempt"
+
+        if not repairer_unit.player == target_unit.player:
+            return False, "Units are not friendly"
+
+        if not self.is_adjacent(repairer_coord, target_coord):
+            return False, "Units are not adjacent"
+
+        repair_amount = repairer_unit.repair_amount(target_unit)
+        if repair_amount == 0 or target_unit.health == 9:
+            return False, "Invalid repair action"
+
+        target_unit.mod_health(repair_amount)
+
+        return (
+            True,
+            f"{repairer_unit.player.name}'s {repairer_unit.type.name} repaired {target_unit.player.name}'s {target_unit.type.name}",
+        )
+
+    def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
+        return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
 
     def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
         """Perform self-destruct action for the unit at the given coordinates."""
