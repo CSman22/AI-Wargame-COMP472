@@ -582,7 +582,7 @@ class Game:
         except Exception as error:
             print(f"Broker error: {error}")
         return None
-    
+
     def attack(self, attacker_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
         attacker_unit = self.get(attacker_coord)
         target_unit = self.get(target_coord)
@@ -637,58 +637,45 @@ class Game:
     def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
         return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
 
-    def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
-        """Perform self-destruct action for the unit at the given coordinates."""
-        unit = self.get(coord)
-        if unit is None or not unit.is_alive():
-            # No unit to self-destruct
-            return False, "Invalid self-destruct attempt"
-
-        # Inflict 2 points of damage to all 8 surrounding units
-        for adjacent_coord in coord.iter_range(1):
-            if self.is_valid_coord(adjacent_coord):
-                self.mod_health(adjacent_coord, -2)
-
-        # Remove the self-destructed unit from the board
-        self.set(coord, None)
-        return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
-
 
 ##############################################################################################################
 
 
 def main():
-    # Welcome to game message
-    print("Welcome to the AI War game !!!")
-    game_type_input = input(
-        "Choose a game type (1: Attacker vs Defender, 2: Attacker vs Computer, 3: Computer vs Defender, 4: Computer vs Computer): "
-    ).strip()
+    # parse command line arguments
+    parser = argparse.ArgumentParser(
+        prog='ai_wargame',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--max_depth', type=int, help='maximum search depth')
+    parser.add_argument('--max_time', type=float, help='maximum search time')
+    parser.add_argument('--game_type', type=str, default="manual",
+                        help='game type: auto|attacker|defender|manual')
+    parser.add_argument('--broker', type=str, help='play via a game broker')
+    args = parser.parse_args()
 
-    # Map the input to the corresponding game type
-    game_type_mapping = {
-        "1": GameType.AttackerVsDefender,
-        "2": GameType.AttackerVsComp,
-        "3": GameType.CompVsDefender,
-        "4": GameType.CompVsComp,
-    }
-
-    game_type = game_type_mapping.get(game_type_input)
-    if game_type is None:
-        print("Invalid game type selected. Exiting.")
-        exit(1)
+    # parse the game type
+    if args.game_type == "attacker":
+        game_type = GameType.AttackerVsComp
+    elif args.game_type == "defender":
+        game_type = GameType.CompVsDefender
+    elif args.game_type == "manual":
+        game_type = GameType.AttackerVsDefender
+    else:
+        game_type = GameType.CompVsComp
 
     # set up game options
     options = Options(game_type=game_type)
 
-    # create a new game
-    game = Game(options=options)
+    # override class defaults via command line options
+    if args.max_depth is not None:
+        options.max_depth = args.max_depth
+    if args.max_time is not None:
+        options.max_time = args.max_time
+    if args.broker is not None:
+        options.broker = args.broker
 
-    # variable to track whose turn it is
-    is_human_turn = (
-        True
-        if game_type in [GameType.AttackerVsDefender, GameType.AttackerVsComp]
-        else False
-    )
+   # create a new game
+    game = Game(options=options)
 
     # the main game loop
     while True:
@@ -698,66 +685,20 @@ def main():
         if winner is not None:
             print(f"{winner.name} wins!")
             break
-
-        if is_human_turn:
-            # Human turn
-            action = (
-                input("Choose an action (move/attack/repair/self-destruct): ")
-                .strip()
-                .lower()
-            )
-
-            if action == "move":
-                game.human_turn()
-
-            elif action == "attack":
-                attacker_coord = Coord.from_string(
-                    input("Enter attacker coordinates: ")
-                )
-                target_coord = Coord.from_string(
-                    input("Enter target coordinates: "))
-                success, result = game.attack(attacker_coord, target_coord)
-                print(result)
-
-            elif action == "repair":
-                repairer_coord = Coord.from_string(
-                    input("Enter repairer coordinates: ")
-                )
-                target_coord = Coord.from_string(
-                    input("Enter target coordinates: "))
-                success, result = game.repair(repairer_coord, target_coord)
-                print(result)
-
-            elif action == "self-destruct":
-                unit_coord = Coord.from_string(
-                    input("Enter coordinates of the unit to self-destruct: ")
-                )
-                success, result = game.self_destruct(unit_coord)
-                print(result)
-
-                # Check game state after self_destruct
-                print("Game state after self_destruct:")
-                print(game)
-
-            else:
-                print("Invalid action. Please choose a valid action.")
-                continue  # Ask for action again
-
+        if game.options.game_type == GameType.AttackerVsDefender:
+            game.human_turn()
+        elif game.options.game_type == GameType.AttackerVsComp and game.next_player == Player.Attacker:
+            game.human_turn()
+        elif game.options.game_type == GameType.CompVsDefender and game.next_player == Player.Defender:
+            game.human_turn()
         else:
-            # Computer turn
+            player = game.next_player
             move = game.computer_turn()
             if move is not None:
                 game.post_move_to_broker(move)
             else:
                 print("Computer doesn't know what to do!!!")
                 exit(1)
-
-        # Transition to the next turn
-        is_human_turn = not is_human_turn
-
-        # Transition to the next turn
-        is_human_turn = not is_human_turn
-
 
 ##############################################################################################################
 
