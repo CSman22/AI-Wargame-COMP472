@@ -13,6 +13,8 @@ import requests
 MAX_HEURISTIC_SCORE = 2000000000
 MIN_HEURISTIC_SCORE = -2000000000
 
+filename = ""
+
 
 class UnitType(Enum):
     """Every unit type."""
@@ -238,7 +240,7 @@ class Options:
     min_depth: int | None = 2
     max_time: float | None = 5.0
     game_type: GameType = GameType.AttackerVsDefender
-    alpha_beta: bool = True
+    alpha_beta: bool = False
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
@@ -412,30 +414,37 @@ class Game:
 
     def to_string(self) -> str:
         """Pretty text representation of the game."""
-        dim = self.options.dim
         output = ""
-        output += f"Turn: {self.next_player.name}\n"
+        output += "------------------------------------\n"
+        output += f"Next player: {self.next_player.name}\n"
         output += f"Turns played: {self.turns_played}\n"
-        coord = Coord()
         output += "\n   "
+        output += self.board_to_string()
+        return output
+
+    def board_to_string(self) -> str:
+        """Initial Configuration of board (Text format)"""
+        dim = self.options.dim
+        coord = Coord()
+        board = ""
         for col in range(dim):
             coord.col = col
             label = coord.col_string()
-            output += f"{label:^3} "
-        output += "\n"
+            board += f"{label:^3} "
+        board += "\n"
         for row in range(dim):
             coord.row = row
             label = coord.row_string()
-            output += f"{label}: "
+            board += f"{label}: "
             for col in range(dim):
                 coord.col = col
                 unit = self.get(coord)
                 if unit is None:
-                    output += " .  "
+                    board += " .  "
                 else:
-                    output += f"{str(unit):^3} "
-            output += "\n"
-        return output
+                    board += f"{str(unit):^3} "
+            board += "\n"
+        return board
 
     def __str__(self) -> str:
         """Default string representation of a game."""
@@ -735,6 +744,27 @@ def main():
 
     # create a new game
     game = Game(options=options)
+
+    # creating the output file
+    b = game.options.alpha_beta
+    t = game.options.max_time
+    m = game.options.max_turns
+    global filename
+    filename = f"gameTrace-{b}-{t}-{m}.txt"
+
+    game_parameters = f"""1. The game parameters
+    a) Timeout (seconds): {t}
+    b) Max number of turns: {m}
+    c) Alpha-beta: {b}
+    d) Play Mode: Player 1 = H & Player 2 = H
+    e) Name of heuristic: 
+    """
+    init_conf = (
+        f"\n2. The initial configuration of the board:\n\n\t{game.board_to_string()}"
+    )
+
+    with open(filename, "w") as file:
+        file.write(game_parameters + init_conf)
 
     # the main game loop
     while True:
