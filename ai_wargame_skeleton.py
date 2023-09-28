@@ -171,7 +171,6 @@ class Coord:
             return None
 
 
-
 ##############################################################################################################
 
 
@@ -184,8 +183,6 @@ class CoordPair:
 
     def to_string(self) -> str:
         """Text representation of a CoordPair."""
-        return self.src.to_string() + " " + self.dst.to_string()
-
         return self.src.to_string() + " " + self.dst.to_string()
 
     def __str__(self) -> str:
@@ -398,7 +395,7 @@ class Game:
         if success:
             self.set(coords.dst, self.get(coords.src))
             self.set(coords.src, None)
-            return (True, "")
+            return (True, "Move performed successfully")
         return (False, msg)
 
     def mod_health(self, coord: Coord, health_delta: int):
@@ -456,7 +453,11 @@ class Game:
         while True:
             s = input(f"Player {self.next_player.name}, enter your move: ")
             coords = CoordPair.from_string(s)
-            if coords is not None:
+            if (
+                coords is not None
+                and self.is_valid_coord(coords.src)
+                and self.is_valid_coord(coords.dst)
+            ):
                 return coords
             else:
                 print("Not a coordinate (e.g. c4 b4)! Try again.\n")
@@ -519,19 +520,24 @@ class Game:
                     unit = Coord.from_string(
                         input("Enter the unit's coordinates to self-destruct: ")
                     )
-                    (success, result) = self.self_destruct(unit)
-                    if success:
-                        print(result)
-                        self.next_turn()
-                        break
+                    if self.board_belongs_to_current_player(
+                        unit
+                    ):  # This is a hypothetical function
+                        (success, result) = self.self_destruct(unit)
+                        if success:
+                            print(result)
+                            self.next_turn()
+                            break
+                        else:
+                            print("The self-destruct action is not valid! Try again.")
                     else:
-                        print("The self-destruct action is not valid! Try again.")
+                        print("You can't self-destruct an opponent's unit!")
 
                 else:
-                    print(f"Invalid choice! Please choose a number between 1 and 4.\n")
+                    print("Invalid choice! Please choose a number between 1 and 4.")
 
             except ValueError:
-                print(f"Invalid input! Please enter a valid number.\n")
+                print("Invalid input! Please enter a valid number.")
 
     def computer_turn(self) -> CoordPair | None:
         """Computer plays a move."""
@@ -681,15 +687,15 @@ class Game:
         attacker_unit = self.get(attacker_coord)
         target_unit = self.get(target_coord)
 
-        # Check if either the attacker or target unit is None, indicating an invalid attack attempt
+        # Rule 1: Check if either the attacker or target unit is None, indicating an invalid attack attempt
         if attacker_unit is None or target_unit is None:
             return False, "Invalid attack attempt"
 
-        # Check if the attacker and target units belong to different players (are adversarial)
+        # Rule 2：Check if the attacker and target units belong to different players (are adversarial)
         if not attacker_unit.player.next() == target_unit.player:
             return False, "Units are not adversarial"
 
-        # Check if the attacker and target units are adjacent on the board
+        # Rule 3: Check if the attacker and target units are adjacent on the board
         if not self.is_adjacent(attacker_coord, target_coord):
             return False, "Units are not adjacent"
 
@@ -715,22 +721,32 @@ class Game:
         repairer_unit = self.get(repairer_coord)
         target_unit = self.get(target_coord)
 
-        # Check if either the repairer or target unit is None, indicating an invalid repair attempt
-        if repairer_unit is None or target_unit is None:
-            return False, "Invalid repair attempt"
-
-        # Check if the repairer and target units belong to the same player (are friendly)
-        if not repairer_unit.player == target_unit.player:
-            return False, "Units are not friendly"
-
-        # Check if the repairer and target units are adjacent on the board
+        # Rule 1: Check if units are adjacent
         if not self.is_adjacent(repairer_coord, target_coord):
             return False, "Units are not adjacent"
 
-        # Calculate the repair amount and check if the repair action is valid
+        # Rule 2: Check if units are friendly
+        if (
+            repairer_unit is None
+            or target_unit is None
+            or not repairer_unit.player == target_unit.player
+        ):
+            return False, "Invalid repair attempt or units are not friendly"
+
+        # Rule 3: Check if the repair leads to a change in health
         repair_amount = repairer_unit.repair_amount(target_unit)
-        if repair_amount == 0 or target_unit.health == 9:
-            return False, "Invalid repair action"
+        if repair_amount == 0:
+            return (
+                False,
+                "Invalid repair action: No change in health or invalid unit combination (e.g., Tech repairing Virus)",
+            )
+
+        # Rule 3b: Check if target unit's health is already at 9
+        if target_unit.health == 9:
+            return (
+                False,
+                "Invalid repair action: Target unit's health is already at maximum",
+            )
 
         # Apply the repair amount to the target unit's health
         target_unit.mod_health(repair_amount)
@@ -748,10 +764,7 @@ class Game:
         col_diff = abs(coord1.col - coord2.col)
 
         # Check if the sum of the row and column differences is 1, indicating that the coordinates are adjacent
-        # This is based on the Manhattan distance in a grid, where adjacent cells have a distance of 1
         return row_diff + col_diff == 1
-    def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
-        return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
 
     def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
         """Perform self-destruct action for the unit at the given coordinates."""
@@ -811,7 +824,7 @@ def main():
     if args.broker is not None:
         options.broker = args.broker
 
-   # create a new game
+    # create a new game
     game = Game(options=options)
 
     # the main game loop
