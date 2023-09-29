@@ -106,6 +106,10 @@ class Unit:
             return 9 - target.health
         return amount
 
+    def belongs_to(self, player):
+        """Check if this unit belongs to the specified player."""
+        return self.player == player
+
 
 ##############################################################################################################
 
@@ -269,6 +273,10 @@ class Game:
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai: bool = True
     _defender_has_ai: bool = True
+
+    """Check if player's AI unit is self-destructed """
+    _attacker_ai_self_destructed: bool = False
+    _defender_ai_self_destructed: bool = False
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -483,8 +491,8 @@ class Game:
                         self.next_turn()
                         break
                     else:
-                        print(result)
-                        # print("The move is not valid! Try again.")
+                        # print(result)
+                        print("The move is not valid! Try again.")
 
                 elif action_choice == 2:
                     attacker = Coord.from_string(
@@ -520,9 +528,7 @@ class Game:
                     unit = Coord.from_string(
                         input("Enter the unit's coordinates to self-destruct: ")
                     )
-                    if self.board_belongs_to_current_player(
-                        unit
-                    ):  # This is a hypothetical function
+                    if self.board_belongs_to_current_player(unit):
                         (success, result) = self.self_destruct(unit)
                         if success:
                             print(result)
@@ -561,25 +567,60 @@ class Game:
         """Check if the game is over."""
         return self.has_winner() is not None
 
+    def check_zero_units(self) -> bool:
+        """Check if both players have zero units on the board."""
+        # Iterate through the game board and count units for each player
+        attacker_units = 0
+        defender_units = 0
+
+        for row in self.board:
+            for unit in row:
+                if unit is not None:
+                    if unit.belongs_to(Player.Attacker):
+                        attacker_units += 1
+                    elif unit.belongs_to(Player.Defender):
+                        defender_units += 1
+
+        # Check if both players have 0 units on the board
+        return attacker_units == 0 and defender_units == 0
+
     def has_winner(self) -> Player | None:
-        """Check if the game is over and returns winner"""
+        """Check if the game is over and returns winner."""
+
+        # Check if both players have 0 units on the board
+        if self.check_zero_units():
+            return Player.Defender
+
+        # Check if the maximum number of turns has been played
         if (
-            self.options.max_turns is not None
-            and self.turns_played > self.options.max_turns
+                self.options.max_turns is not None
+                and self.turns_played > self.options.max_turns
         ):
             return Player.Defender
+
+        # Check if the attacker has no AI units left
         elif not self._attacker_has_ai:
             return Player.Defender
+
+        # Check if the defender has no AI units left
         elif not self._defender_has_ai:
             return Player.Attacker
-        elif not any(
-            self.move_candidates()
-        ):  # Check if no action is available to the current player
+
+        # Check if no action is available to the current player
+        elif not any(self.move_candidates()):
             return (
                 Player.Defender
                 if self.next_player == Player.Attacker
                 else Player.Attacker
             )
+
+        # Check if either player's AI unit has self-destructed
+        elif self._attacker_ai_self_destructed:
+            return Player.Defender
+        elif self._defender_ai_self_destructed:
+            return Player.Attacker
+
+        # If none of the above conditions are met, the game is still ongoing
         else:
             return None
 
@@ -733,7 +774,7 @@ class Game:
         ):
             return False, "Invalid repair attempt or units are not friendly"
 
-        # Rule 3: Check if the repair leads to a change in health
+        # Rule 3a: Check if the repair leads to a change in health
         repair_amount = repairer_unit.repair_amount(target_unit)
         if repair_amount == 0:
             return (
@@ -760,15 +801,28 @@ class Game:
     # Check if the coordinates are adjacent
     def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
         # Calculate the difference in rows and columns between the two coordinates
-        row_diff = abs(coord1.row - coord2.row)
-        col_diff = abs(coord1.col - coord2.col)
-
         # Check if the sum of the row and column differences is 1, indicating that the coordinates are adjacent
-        return row_diff + col_diff == 1
+        return abs(coord1.row - coord2.row) + abs(coord1.col - coord2.col) == 1
+
+    def is_ai_self_destruct(self, player: Player):
+        """Check if player's AI is self-destructed."""
+        if player == Player.Attacker:
+            self._attacker_ai_self_destructed = (
+                True  # Set the flag for the attacker's AI unit.
+            )
+        elif player == Player.Defender:
+            self._defender_ai_self_destructed = (
+                True  # Set the flag for the defender's AI unit.
+            )
 
     def self_destruct(self, coord: Coord) -> Tuple[bool, str]:
         """Perform self-destruct action for the unit at the given coordinates."""
         unit = self.get(coord)
+
+        # Check if the unit belongs to an AI player and trigger ai_self_destruct accordingly
+        if unit.type == UnitType.AI:
+            self.is_ai_self_destruct(unit.player)
+
         if unit is None or not unit.is_alive():
             # No unit to self-destruct
             return False, "Invalid self-destruct attempt"
@@ -783,6 +837,15 @@ class Game:
 
         return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
 
+    def board_belongs_to_current_player(self, coord: Coord) -> bool:
+        """Check if the unit at the given coordinates belongs to the current player."""
+        # Retrieve the unit at the specified coordinates
+        unit = self.get(
+            coord
+        )  # Assuming you have a method called 'get' to retrieve a unit based on coordinates
+
+        # If there's no unit at the coordinates, or the unit does not belong to the current player, return False
+        return unit is not None and unit.belongs_to(self.next_player)
 
 ##############################################################################################################
 
