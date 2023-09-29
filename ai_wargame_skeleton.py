@@ -639,8 +639,8 @@ class Game:
 
         # Check if the maximum number of turns has been played
         if (
-                self.options.max_turns is not None
-                and self.turns_played > self.options.max_turns
+            self.options.max_turns is not None
+            and self.turns_played > self.options.max_turns
         ):
             return Player.Defender
 
@@ -892,6 +892,7 @@ class Game:
 
         # If there's no unit at the coordinates, or the unit does not belong to the current player, return False
         return unit is not None and unit.belongs_to(self.next_player)
+
 
 ##############################################################################################################
 
