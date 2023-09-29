@@ -581,10 +581,7 @@ class Game:
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
                             file.write(actionInfo)
-
                             break
-                        else:
-                            print("The self-destruct action is not valid! Try again.")
                     else:
                         print("You can't self-destruct an opponent's unit!")
 
