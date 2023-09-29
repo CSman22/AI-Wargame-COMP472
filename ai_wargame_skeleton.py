@@ -19,7 +19,6 @@ filename = ""
 class UnitType(Enum):
     """Every unit type."""
 
-
     AI = 0
     Tech = 1
     Virus = 2
@@ -29,7 +28,6 @@ class UnitType(Enum):
 
 class Player(Enum):
     """The 2 players."""
-
 
     Attacker = 0
     Defender = 1
@@ -50,7 +48,6 @@ class GameType(Enum):
 
 
 ##############################################################################################################
-
 
 
 @dataclass(slots=True)
@@ -115,10 +112,6 @@ class Unit:
         """Check if this unit belongs to the specified player."""
         return self.player == player
 
-    def belongs_to(self, player):
-        """Check if this unit belongs to the specified player."""
-        return self.player == player
-
 
 ##############################################################################################################
 
@@ -127,13 +120,11 @@ class Unit:
 class Coord:
     """Representation of a game cell coordinate (row, col)."""
 
-
     row: int = 0
     col: int = 0
 
     def col_string(self) -> str:
         """Text representation of this Coord's column."""
-        coord_char = "?"
         coord_char = "?"
         if self.col < 16:
             coord_char = "0123456789abcdef"[self.col]
@@ -141,7 +132,6 @@ class Coord:
 
     def row_string(self) -> str:
         """Text representation of this Coord's row."""
-        coord_char = "?"
         coord_char = "?"
         if self.row < 26:
             coord_char = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[self.row]
@@ -178,7 +168,6 @@ class Coord:
         s = s.strip()
         for sep in " ,.:;-_":
             s = s.replace(sep, "")
-        if len(s) == 2:
         if len(s) == 2:
             coord = Coord()
             coord.row = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".find(s[0:1].upper())
@@ -233,7 +222,6 @@ class CoordPair:
         for sep in " ,.:;-_":
             s = s.replace(sep, "")
         if len(s) == 4:
-        if len(s) == 4:
             coords = CoordPair()
             coords.src.row = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".find(s[0:1].upper())
             coords.src.col = "0123456789abcdef".find(s[1:2].lower())
@@ -245,7 +233,6 @@ class CoordPair:
 
 
 ##############################################################################################################
-
 
 
 @dataclass(slots=True)
@@ -266,7 +253,6 @@ class Options:
 ##############################################################################################################
 
 
-
 @dataclass(slots=True)
 class Stats:
     """Representation of the global game statistics."""
@@ -278,28 +264,17 @@ class Stats:
 ##############################################################################################################
 
 
-
 @dataclass(slots=True)
 class Game:
     """Representation of the game state."""
 
-
     board: list[list[Unit | None]] = field(default_factory=list)
     next_player: Player = Player.Attacker
-    turns_played: int = 1
-    turns_played: int = 1
+    turns_played: int = 0
     options: Options = field(default_factory=Options)
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai: bool = True
     _defender_has_ai: bool = True
-
-    """Check if player's AI unit is self-destructed """
-    _attacker_ai_self_destructed: bool = False
-    _defender_ai_self_destructed: bool = False
-
-    """Check if player's AI unit is self-destructed """
-    _attacker_ai_self_destructed: bool = False
-    _defender_ai_self_destructed: bool = False
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -317,9 +292,6 @@ class Game:
         self.set(Coord(md, md - 1), Unit(player=Player.Attacker, type=UnitType.Virus))
         self.set(Coord(md - 2, md), Unit(player=Player.Attacker, type=UnitType.Program))
         self.set(Coord(md, md - 2), Unit(player=Player.Attacker, type=UnitType.Program))
-        self.set(
-            Coord(md - 1, md - 1), Unit(player=Player.Attacker, type=UnitType.Firewall)
-        )
         self.set(
             Coord(md - 1, md - 1), Unit(player=Player.Attacker, type=UnitType.Firewall)
         )
@@ -360,150 +332,6 @@ class Game:
                 else:
                     self._defender_has_ai = False
 
-    def is_valid_move(self, coords: CoordPair) -> tuple[bool, str]:
-        """Validate a move expressed as a CoordPair. TODO: Check the move set of every unit"""
-        # check if coordinate is within the board
-        if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
-            return (False, "Coordinate not within board! Try again.\n")
-        # Check whether source space is empty or belongs to current player
-        unit = self.get(coords.src)
-        if unit is None or unit.player != self.next_player:
-            return (False, f"Choose a {self.next_player.name} unit! Try again. \n")
-        # check if the unit is an AI, firewall or a program.
-        if (
-            unit.type == UnitType.AI
-            or unit.type == UnitType.Firewall
-            or unit.type == UnitType.Program
-        ):
-            if unit.player == Player.Attacker:
-                # check if attacking unit is only moving up or left
-                if not (
-                    coords.dst == Coord(coords.src.row - 1, coords.src.col)
-                    or coords.dst == Coord(coords.src.row, coords.src.col - 1)
-                ):
-                    return (
-                        False,
-                        f"{unit} can only move up or left by one! Try again.\n",
-                    )
-
-            else:
-                # check if defending unit is only moving down or right
-                if not (
-                    coords.dst == Coord(coords.src.row + 1, coords.src.col)
-                    or coords.dst == Coord(coords.src.row, coords.src.col + 1)
-                ):
-                    return (
-                        False,
-                        f"{unit} can only move down or right by one! Try again.\n",
-                    )
-
-            # check if unit is engaged in battle
-            for adj_coord in coords.src.iter_adjacent():
-                adj_unit = self.get(adj_coord)
-                if adj_unit is not None and adj_unit.player != self.next_player:
-                    return (
-                        False,
-                        f"{unit} is engaged in battle with {adj_unit}! Try again.\n",
-                    )
-        else:
-            # Check if the virus or the tech is moving left, up, right or down by one
-            if not (
-                coords.dst == Coord(coords.src.row + 1, coords.src.col)
-                or coords.dst == Coord(coords.src.row, coords.src.col + 1)
-                or coords.dst == Coord(coords.src.row - 1, coords.src.col)
-                or coords.dst == Coord(coords.src.row, coords.src.col - 1)
-            ):
-                return (
-                    False,
-                    f"{unit} can only move left, up, right or down by one! Try again.\n",
-                )
-        # Check destination space
-        unit = self.get(coords.dst)
-        if unit is not None:
-            return (False, "Destination space occupied! Try again.\n")
-        return (True, "")
-
-    def perform_move(self, coords: CoordPair) -> Tuple[bool, str]:
-        """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
-        (success, msg) = self.is_valid_move(coords)
-        if success:
-            self.set(coords.dst, self.get(coords.src))
-            self.set(coords.src, None)
-            return (True, "Move performed successfully")
-        return (False, msg)
-
-    def is_valid_move(self, coords: CoordPair) -> tuple[bool, str]:
-        """Validate a move expressed as a CoordPair. TODO: Check the move set of every unit"""
-        # check if coordinate is within the board
-        if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
-            return (False, "Coordinate not within board! Try again.\n")
-        # Check whether source space is empty or belongs to current player
-        unit = self.get(coords.src)
-        if unit is None or unit.player != self.next_player:
-            return (False, f"Choose a {self.next_player.name} unit! Try again. \n")
-        # check if the unit is an AI, firewall or a program.
-        if (
-            unit.type == UnitType.AI
-            or unit.type == UnitType.Firewall
-            or unit.type == UnitType.Program
-        ):
-            if unit.player == Player.Attacker:
-                # check if attacking unit is only moving up or left
-                if not (
-                    coords.dst == Coord(coords.src.row - 1, coords.src.col)
-                    or coords.dst == Coord(coords.src.row, coords.src.col - 1)
-                ):
-                    return (
-                        False,
-                        f"{unit} can only move up or left by one! Try again.\n",
-                    )
-
-            else:
-                # check if defending unit is only moving down or right
-                if not (
-                    coords.dst == Coord(coords.src.row + 1, coords.src.col)
-                    or coords.dst == Coord(coords.src.row, coords.src.col + 1)
-                ):
-                    return (
-                        False,
-                        f"{unit} can only move down or right by one! Try again.\n",
-                    )
-
-            # check if unit is engaged in battle
-            for adj_coord in coords.src.iter_adjacent():
-                adj_unit = self.get(adj_coord)
-                if adj_unit is not None and adj_unit.player != self.next_player:
-                    return (
-                        False,
-                        f"{unit} is engaged in battle with {adj_unit}! Try again.\n",
-                    )
-        else:
-            # Check if the virus or the tech is moving left, up, right or down by one
-            if not (
-                coords.dst == Coord(coords.src.row + 1, coords.src.col)
-                or coords.dst == Coord(coords.src.row, coords.src.col + 1)
-                or coords.dst == Coord(coords.src.row - 1, coords.src.col)
-                or coords.dst == Coord(coords.src.row, coords.src.col - 1)
-            ):
-                return (
-                    False,
-                    f"{unit} can only move left, up, right or down by one! Try again.\n",
-                )
-        # Check destination space
-        unit = self.get(coords.dst)
-        if unit is not None:
-            return (False, "Destination space occupied! Try again.\n")
-        return (True, "")
-
-    def perform_move(self, coords: CoordPair) -> Tuple[bool, str]:
-        """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
-        (success, msg) = self.is_valid_move(coords)
-        if success:
-            self.set(coords.dst, self.get(coords.src))
-            self.set(coords.src, None)
-            return (True, "Move performed successfully")
-        return (False, msg)
-
     def mod_health(self, coord: Coord, health_delta: int):
         """Modify health of unit at Coord (positive or negative delta)."""
         target = self.get(coord)
@@ -519,10 +347,7 @@ class Game:
     def to_string(self) -> str:
         """Pretty text representation of the game."""
         output = ""
-        output += "------------------------------------\n"
-        output += f"Turn: {self.next_player.name}\n"
-        output += "------------------------------------\n"
-        output += f"Turn: {self.next_player.name}\n"
+        output += f"Next player: {self.next_player.name}\n"
         output += f"Turns played: {self.turns_played}\n"
         output += "\n   "
         output += self.board_to_string()
@@ -576,13 +401,7 @@ class Game:
         """Read a move from keyboard and return as a CoordPair."""
         while True:
             s = input(f"Player {self.next_player.name}, enter your move: ")
-            s = input(f"Player {self.next_player.name}, enter your move: ")
             coords = CoordPair.from_string(s)
-            if (
-                coords is not None
-                and self.is_valid_coord(coords.src)
-                and self.is_valid_coord(coords.dst)
-            ):
             if (
                 coords is not None
                 and self.is_valid_coord(coords.src)
@@ -590,21 +409,12 @@ class Game:
             ):
                 return coords
             else:
-                print("Not a coordinate (e.g. c4 b4)! Try again.\n")
-                print("Not a coordinate (e.g. c4 b4)! Try again.\n")
+                print("Invalid coordinates! Try again.")
 
     def human_turn(self):
-        """Allows the human player to make a move in the game."""
-
-        global filename  # Use the global variable 'filename' for recording actions
-
-        """Allows the human player to make a move in the game."""
-
-        global filename  # Use the global variable 'filename' for recording actions
-
+        """Human player plays a move (or get via broker)."""
         while True:
-            # Display a menu of possible actions for the player
-            # Display a menu of possible actions for the player
+            # Display a menu of actions
             print(f"Player {self.next_player.name}, choose an action:")
             print("1. Move")
             print("2. Attack")
@@ -612,12 +422,8 @@ class Game:
             print("4. Self-destruct")
 
             try:
-                # Get the player's choice of action
-                # Get the player's choice of action
                 action_choice = int(input("Enter the number of your chosen action: "))
 
-                # Handle the 'Move' action
-                # Handle the 'Move' action
                 if action_choice == 1:
                     mv = self.read_move()
                     (success, result) = self.perform_move(mv)
@@ -635,22 +441,10 @@ class Game:
                     else:
                         print("The move is not valid! Try again.")
 
-                # Handle the 'Attack' action
-                # Handle the 'Attack' action
                 elif action_choice == 2:
                     attacker = Coord.from_string(
                         input("Enter the attacker's coordinates: ")
                     )
-                    print(f"attacker coord: {attacker}")
-
-                    target = Coord.from_string(
-                        input("Enter the target's coordinates: ")
-                    )
-                    attacker = Coord.from_string(
-                        input("Enter the attacker's coordinates: ")
-                    )
-                    print(f"attacker coord: {attacker}")
-
                     target = Coord.from_string(
                         input("Enter the target's coordinates: ")
                     )
@@ -658,33 +452,11 @@ class Game:
                     if success:
                         print(result)
                         self.next_turn()
-
-                        # Record the attack action to the file
-                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
-                        actionInfo += f"\t{self.board_to_string()}"
-                        with open(filename, "a") as file:
-                            file.write(actionInfo)
-
-
-                        # Record the attack action to the file
-                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
-                        actionInfo += f"\t{self.board_to_string()}"
-                        with open(filename, "a") as file:
-                            file.write(actionInfo)
-
                         break
                     else:
                         print("The attack is not valid! Try again.")
 
-                # Handle the 'Repair' action
-                # Handle the 'Repair' action
                 elif action_choice == 3:
-                    repairer = Coord.from_string(
-                        input("Enter the repairer's coordinates: ")
-                    )
-                    target = Coord.from_string(
-                        input("Enter the target's coordinates: ")
-                    )
                     repairer = Coord.from_string(
                         input("Enter the repairer's coordinates: ")
                     )
@@ -706,66 +478,22 @@ class Game:
                     else:
                         print("The repair action is not valid! Try again.")
 
-                # Handle the 'Self-destruct' action
-                # Handle the 'Self-destruct' action
                 elif action_choice == 4:
                     unit = Coord.from_string(
                         input("Enter the unit's coordinates to self-destruct: ")
                     )
-                    if unit is None:
-                        print("Invalid coordinates. Please try again!")
+                    (success, result) = self.self_destruct(unit)
+                    if success:
+                        print(result)
+                        self.next_turn()
                         break
-                    if self.is_valid_coord(unit):
-                        if self.board_belongs_to_current_player(unit):
-                            (success, result) = self.self_destruct(unit)
-                            if success:
-                                print(result)
-                                self.next_turn()
-
-                                # Record the attack action to the file
-                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-desctructed. \n"
-                                actionInfo += f"\t{self.board_to_string()}"
-                                with open(filename, "a") as file:
-                                    file.write(actionInfo)
-                                break
-                            else:
-                                print(
-                                    "The self-destruct action is not valid! Try again."
-                                )
-                        else:
-                            print("You can't self-destruct an opponent's unit!")
-                    unit = Coord.from_string(
-                        input("Enter the unit's coordinates to self-destruct: ")
-                    )
-                    if unit is None:
-                        print("Invalid coordinates. Please try again!")
-                        break
-                    if self.is_valid_coord(unit):
-                        if self.board_belongs_to_current_player(unit):
-                            (success, result) = self.self_destruct(unit)
-                            if success:
-                                print(result)
-                                self.next_turn()
-
-                                # Record the attack action to the file
-                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-desctructed. \n"
-                                actionInfo += f"\t{self.board_to_string()}"
-                                with open(filename, "a") as file:
-                                    file.write(actionInfo)
-                                break
-                            else:
-                                print(
-                                    "The self-destruct action is not valid! Try again."
-                                )
-                        else:
-                            print("You can't self-destruct an opponent's unit!")
+                    else:
+                        print("The self-destruct action is not valid! Try again.")
 
                 else:
                     print("Invalid choice! Please choose a number between 1 and 4.")
 
             except ValueError:
-                # Handle invalid input types (e.g., non-numeric input)
-                # Handle invalid input types (e.g., non-numeric input)
                 print("Invalid input! Please enter a valid number.")
 
     def computer_turn(self) -> CoordPair | None:
@@ -774,7 +502,6 @@ class Game:
         if mv is not None:
             (success, result) = self.perform_move(mv)
             if success:
-                print(f"Computer {self.next_player.name}: ", end="")
                 print(f"Computer {self.next_player.name}: ", end="")
                 print(result)
                 self.next_turn()
@@ -791,115 +518,31 @@ class Game:
         """Check if the game is over."""
         return self.has_winner() is not None
 
-    def check_zero_units(self) -> bool:
-        """Check if both players have zero units on the board."""
-        # Iterate through the game board and count units for each player
-        attacker_units = 0
-        defender_units = 0
-
-        for row in self.board:
-            for unit in row:
-                if unit is not None:
-                    if unit.belongs_to(Player.Attacker):
-                        attacker_units += 1
-                    elif unit.belongs_to(Player.Defender):
-                        defender_units += 1
-
-        # Check if both players have 0 units on the board
-        return attacker_units == 0 and defender_units == 0
-
-    def check_zero_units(self) -> bool:
-        """Check if both players have zero units on the board."""
-        # Iterate through the game board and count units for each player
-        attacker_units = 0
-        defender_units = 0
-
-        for row in self.board:
-            for unit in row:
-                if unit is not None:
-                    if unit.belongs_to(Player.Attacker):
-                        attacker_units += 1
-                    elif unit.belongs_to(Player.Defender):
-                        defender_units += 1
-
-        # Check if both players have 0 units on the board
-        return attacker_units == 0 and defender_units == 0
-
     def has_winner(self) -> Player | None:
-        """Check if the game is over and returns winner."""
-
-        # Check if both players have 0 units on the board
-        if self.check_zero_units():
-            return Player.Defender
-
-        # Check if the maximum number of turns has been played
-        if (
-            self.options.max_turns is not None
-            and self.turns_played > self.options.max_turns
-        ):
-        """Check if the game is over and returns winner."""
-
-        # Check if both players have 0 units on the board
-        if self.check_zero_units():
-            return Player.Defender
-
-        # Check if the maximum number of turns has been played
+        """Check if the game is over and returns winner"""
         if (
             self.options.max_turns is not None
             and self.turns_played > self.options.max_turns
         ):
             return Player.Defender
-
-        # Check if the attacker has no AI units left
-
-        # Check if the attacker has no AI units left
         elif not self._attacker_has_ai:
             return Player.Defender
-
-        # Check if the defender has no AI units left
-
-        # Check if the defender has no AI units left
         elif not self._defender_has_ai:
             return Player.Attacker
-
-        # Check if no action is available to the current player
-        elif not any(self.move_candidates()):
+        elif not any(
+            self.move_candidates()
+        ):  # Check if no action is available to the current player
             return (
                 Player.Defender
                 if self.next_player == Player.Attacker
                 else Player.Attacker
             )
-
-        # Check if either player's AI unit has self-destructed
-        elif self._attacker_ai_self_destructed:
-            return Player.Defender
-        elif self._defender_ai_self_destructed:
-            return Player.Attacker
-
-        # If none of the above conditions are met, the game is still ongoing
-
-        # Check if no action is available to the current player
-        elif not any(self.move_candidates()):
-            return (
-                Player.Defender
-                if self.next_player == Player.Attacker
-                else Player.Attacker
-            )
-
-        # Check if either player's AI unit has self-destructed
-        elif self._attacker_ai_self_destructed:
-            return Player.Defender
-        elif self._defender_ai_self_destructed:
-            return Player.Attacker
-
-        # If none of the above conditions are met, the game is still ongoing
         else:
             return None
 
     def move_candidates(self) -> Iterable[CoordPair]:
         """Generate valid move candidates for the next player."""
         move = CoordPair()
-        for src, _ in self.player_units(self.next_player):
         for src, _ in self.player_units(self.next_player):
             move.src = src
             for dst in src.iter_adjacent():
@@ -927,16 +570,11 @@ class Game:
         print(f"Heuristic score: {score}")
         print(f"Average recursive depth: {avg_depth:0.1f}")
         print(f"Evals per depth: ", end="")
-        print(f"Evals per depth: ", end="")
         for k in sorted(self.stats.evaluations_per_depth.keys()):
-            print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end="")
             print(f"{k}:{self.stats.evaluations_per_depth[k]} ", end="")
         print()
         total_evals = sum(self.stats.evaluations_per_depth.values())
         if self.stats.total_seconds > 0:
-            print(
-                f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s"
-            )
             print(
                 f"Eval perf.: {total_evals / self.stats.total_seconds / 1000:0.1f}k/s"
             )
@@ -951,15 +589,9 @@ class Game:
             "from": {"row": move.src.row, "col": move.src.col},
             "to": {"row": move.dst.row, "col": move.dst.col},
             "turn": self.turns_played,
-            "turn": self.turns_played,
         }
         try:
             r = requests.post(self.options.broker, json=data)
-            if (
-                r.status_code == 200
-                and r.json()["success"]
-                and r.json()["data"] == data
-            ):
             if (
                 r.status_code == 200
                 and r.json()["success"]
@@ -971,9 +603,6 @@ class Game:
                 print(
                     f"Broker error: status code: {r.status_code}, response: {r.json()}"
                 )
-                print(
-                    f"Broker error: status code: {r.status_code}, response: {r.json()}"
-                )
         except Exception as error:
             print(f"Broker error: {error}")
 
@@ -982,19 +611,13 @@ class Game:
         if self.options.broker is None:
             return None
         headers = {"Accept": "application/json"}
-        headers = {"Accept": "application/json"}
         try:
             r = requests.get(self.options.broker, headers=headers)
             if r.status_code == 200 and r.json()["success"]:
                 data = r.json()["data"]
-            if r.status_code == 200 and r.json()["success"]:
-                data = r.json()["data"]
                 if data is not None:
                     if data["turn"] == self.turns_played + 1:
-                    if data["turn"] == self.turns_played + 1:
                         move = CoordPair(
-                            Coord(data["from"]["row"], data["from"]["col"]),
-                            Coord(data["to"]["row"], data["to"]["col"]),
                             Coord(data["from"]["row"], data["from"]["col"]),
                             Coord(data["to"]["row"], data["to"]["col"]),
                         )
@@ -1011,100 +634,10 @@ class Game:
                 print(
                     f"Broker error: status code: {r.status_code}, response: {r.json()}"
                 )
-                print(
-                    f"Broker error: status code: {r.status_code}, response: {r.json()}"
-                )
         except Exception as error:
             print(f"Broker error: {error}")
         return None
 
-    def is_ai_self_destruct(self, player: Player):
-        """Check if player's AI is self-destructed."""
-        if player == Player.Attacker:
-            self._attacker_ai_self_destructed = (
-                True  # Set the flag for the attacker's AI unit.
-            )
-        elif player == Player.Defender:
-            self._defender_ai_self_destructed = (
-                True  # Set the flag for the defender's AI unit.
-            )
-    # attack actions
-    def attack(self, attacker_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
-        # Retrieve the units at the attacker and target coordinates
-        attacker_unit = self.get(attacker_coord)
-        target_unit = self.get(target_coord)
-
-        # Rule 1: Check if either the attacker or target unit is None, indicating an invalid attack attempt
-        if attacker_unit is None or target_unit is None:
-            return False, "Invalid attack attempt"
-
-        # Rule 2：Check if the attacker and target units belong to different players (are adversarial)
-        if not attacker_unit.player.next() == target_unit.player:
-            return False, "Units are not adversarial"
-
-        # Rule 3: Check if the attacker and target units are adjacent on the board
-        if not self.is_adjacent(attacker_coord, target_coord):
-            return False, "Units are not adjacent"
-
-        # Calculate and apply damage to the target unit based on the attacker unit's damage amount
-        damage = attacker_unit.damage_amount(target_unit)
-        target_unit.mod_health(-damage)
-        self.remove_dead(target_coord)
-
-        # Bi-directional combat: Calculate and apply damage back to the attacker unit
-        damage_back = target_unit.damage_amount(attacker_unit)
-        attacker_unit.mod_health(-damage_back)
-        self.remove_dead(attacker_coord)
-
-        # Return success message with details of the attack
-        return (
-            True,
-            f"{attacker_unit.player.name}'s {attacker_unit.type.name} attacked {target_unit.player.name}'s {target_unit.type.name}",
-        )
-
-    # repair actions
-    def repair(self, repairer_coord: Coord, target_coord: Coord) -> Tuple[bool, str]:
-        # Retrieve the units at the repairer and target coordinates
-        repairer_unit = self.get(repairer_coord)
-        target_unit = self.get(target_coord)
-
-        # Rule 1: Check if units are adjacent
-        if not self.is_adjacent(repairer_coord, target_coord):
-            return False, "Units are not adjacent"
-
-        # Rule 2: Check if units are friendly
-        if (
-            repairer_unit is None
-            or target_unit is None
-            or not repairer_unit.player == target_unit.player
-        ):
-            return False, "Invalid repair attempt or units are not friendly"
-
-        # Rule 3a: Check if the repair leads to a change in health
-        repair_amount = repairer_unit.repair_amount(target_unit)
-        if repair_amount == 0:
-            return (
-                False,
-                "Invalid repair action: No change in health or invalid unit combination (e.g., Tech repairing Virus)",
-            )
-
-        # Rule 3b: Check if target unit's health is already at 9
-        if target_unit.health == 9:
-            return (
-                False,
-                "Invalid repair action: Target unit's health is already at maximum",
-            )
-
-        # Apply the repair amount to the target unit's health
-        target_unit.mod_health(repair_amount)
-
-        # Return success message with details of the repair action
-        return (
-            True,
-            f"{repairer_unit.player.name}'s {repairer_unit.type.name} repaired {target_unit.player.name}'s {target_unit.type.name}",
-        )
-
-    # Check if the coordinates are adjacent
     def is_adjacent(self, coord1: Coord, coord2: Coord) -> bool:
         # Calculate the difference in rows and columns between the two coordinates
         # Check if the sum of the row and column differences is 1, indicating that the coordinates are adjacent
