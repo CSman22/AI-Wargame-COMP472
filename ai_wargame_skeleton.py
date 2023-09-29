@@ -270,7 +270,7 @@ class Game:
 
     board: list[list[Unit | None]] = field(default_factory=list)
     next_player: Player = Player.Attacker
-    turns_played: int = 0
+    turns_played: int = 1
     options: Options = field(default_factory=Options)
     stats: Stats = field(default_factory=Stats)
     _attacker_has_ai: bool = True
@@ -489,10 +489,12 @@ class Game:
                 print("Not a coordinate (e.g. c4 b4)! Try again.\n")
 
     def human_turn(self):
-        """Human player plays a move (or get via broker)."""
-        global filename
+        """Allows the human player to make a move in the game."""
+
+        global filename  # Use the global variable 'filename' for recording actions
+
         while True:
-            # Display a menu of actions
+            # Display a menu of possible actions for the player
             print(f"Player {self.next_player.name}, choose an action:")
             print("1. Move")
             print("2. Attack")
@@ -500,8 +502,10 @@ class Game:
             print("4. Self-destruct")
 
             try:
+                # Get the player's choice of action
                 action_choice = int(input("Enter the number of your chosen action: "))
 
+                # Handle the 'Move' action
                 if action_choice == 1:
                     mv = self.read_move()
                     (success, result) = self.perform_move(mv)
@@ -509,7 +513,7 @@ class Game:
                         print(result)
                         self.next_turn()
 
-                        # Record action to file
+                        # Record the move action to the file
                         actionInfo = f"Move from {chr(65 + mv.src.row)}{mv.src.col} to {chr(65 + mv.dst.row)}{mv.dst.col}\n"
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
@@ -517,13 +521,15 @@ class Game:
 
                         break
                     else:
-                        # print(result)
                         print("The move is not valid! Try again.")
 
+                # Handle the 'Attack' action
                 elif action_choice == 2:
                     attacker = Coord.from_string(
                         input("Enter the attacker's coordinates: ")
                     )
+                    print(f"attacker coord: {attacker}")
+
                     target = Coord.from_string(
                         input("Enter the target's coordinates: ")
                     )
@@ -532,7 +538,7 @@ class Game:
                         print(result)
                         self.next_turn()
 
-                        # Record action to file
+                        # Record the attack action to the file
                         actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
@@ -542,6 +548,7 @@ class Game:
                     else:
                         print("The attack is not valid! Try again.")
 
+                # Handle the 'Repair' action
                 elif action_choice == 3:
                     repairer = Coord.from_string(
                         input("Enter the repairer's coordinates: ")
@@ -554,7 +561,7 @@ class Game:
                         print(result)
                         self.next_turn()
 
-                        # Record action to file
+                        # Record the repair action to the file
                         actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.row} to {chr(65 + target.row)}{target.col}\n"
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
@@ -564,31 +571,39 @@ class Game:
                     else:
                         print("The repair action is not valid! Try again.")
 
+                # Handle the 'Self-destruct' action
                 elif action_choice == 4:
                     unit = Coord.from_string(
                         input("Enter the unit's coordinates to self-destruct: ")
                     )
-                    if self.board_belongs_to_current_player(unit):
-                        (success, result) = self.self_destruct(unit)
-                        if success:
-                            print(result)
-                            self.next_turn()
+                    if unit is None:
+                        print("Invalid coordinates. Please try again!")
+                        break
+                    if self.is_valid_coord(unit):
+                        if self.board_belongs_to_current_player(unit):
+                            (success, result) = self.self_destruct(unit)
+                            if success:
+                                print(result)
+                                self.next_turn()
 
-                        # Record action to file
-                        actionInfo = (
-                            f"Self-destruct from {chr(65 + unit.row)}{unit.row}\n"
-                        )
-                        actionInfo += f"\t{self.board_to_string()}"
-                        with open(filename, "a") as file:
-                            file.write(actionInfo)
-                            break
-                    else:
-                        print("You can't self-destruct an opponent's unit!")
+                                # Record the attack action to the file
+                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-desctructed. \n"
+                                actionInfo += f"\t{self.board_to_string()}"
+                                with open(filename, "a") as file:
+                                    file.write(actionInfo)
+                                break
+                            else:
+                                print(
+                                    "The self-destruct action is not valid! Try again."
+                                )
+                        else:
+                            print("You can't self-destruct an opponent's unit!")
 
                 else:
                     print("Invalid choice! Please choose a number between 1 and 4.")
 
             except ValueError:
+                # Handle invalid input types (e.g., non-numeric input)
                 print("Invalid input! Please enter a valid number.")
 
     def computer_turn(self) -> CoordPair | None:
@@ -998,5 +1013,5 @@ def main():
 
 ##############################################################################################################
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
