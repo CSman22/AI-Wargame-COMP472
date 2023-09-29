@@ -1,0 +1,56 @@
+1. The game parameters
+a) Timeout (seconds): 5.0
+b) Max number of turns: 100
+c) Alpha-beta: False
+d) Play Mode: Player 1 = H & Player 2 = H
+e) Name of heuristic: 
+
+2. The initial configuration of the board:
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .  aP9 
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+ 
+3. Action 
+3.1 Action info
+------------------------
+Turn #1
+Attacker
+D3 self-desctructed. 
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .  aP7 
+D:  .   .   .   .  aV7 
+E:  .   .  aP7 aV7 aA7 
+
+------------------------
+Turn #2
+Defender
+C2 self-desctructed. 
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT7 dP7  .   .   .  
+C:  .   .   .   .  aP7 
+D:  .   .   .   .  aV7 
+E:  .   .  aP7 aV7 aA7 
+
+------------------------
+Turn #3
+Attacker
+E4 self-desctructed. 
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT7 dP7  .   .   .  
+C:  .   .   .   .  aP7 
+D:  .   .   .   .  aV5 
+E:  .   .  aP7 aV5  .  
+
+------------------------
+Turn #4
+Defender
+
+4. Game Result
+Defender wins in 4 turns
