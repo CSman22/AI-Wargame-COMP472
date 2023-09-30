@@ -1,0 +1,265 @@
+1. The game parameters
+a) Timeout (seconds): 5.0
+b) Max number of turns: 100
+c) Alpha-beta: False
+d) Play Mode: Player 1 = H & Player 2 = H
+e) Name of heuristic: 
+
+2. The initial configuration of the board:
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .  aP9 
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+ 
+3. Action 
+3.1 Action info
+------------------------
+Turn #1
+Attacker
+Move from C4 to B4
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT9 dP9  .   .  aP9 
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #2
+Defender
+Move from A2 to A3
+	 0   1   2   3   4  
+A: dA9 dT9  .  dF9  .  
+B: dT9 dP9  .   .  aP9 
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #3
+Attacker
+Move from B4 to A4
+	 0   1   2   3   4  
+A: dA9 dT9  .  dF9 aP9 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #4
+Defender
+Move from A1 to A2
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF9 aP9 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #5
+Attacker
+Attack from A4 to A3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP8 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #6
+Defender
+Repair from A2 to A3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF9 aP8 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #7
+Attacker
+Attack from A4 to A3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP7 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #8
+Defender
+Attack from A3 to A4
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF7 aP6 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #9
+Attacker
+Attack from A3 to A4
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF6 aP5 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #10
+Defender
+Attack from A3 to A4
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF5 aP4 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #11
+Attacker
+Move from D4 to C4
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF5 aP4 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .  aV9 
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #12
+Defender
+Repair from A2 to A3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP4 
+B: dT9 dP9  .   .   .  
+C: dF9  .   .   .  aV9 
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #13
+Attacker
+Move from C4 to B4
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP4 
+B: dT9 dP9  .   .  aV9 
+C: dF9  .   .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #14
+Defender
+Move from B1 to C1
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP4 
+B: dT9  .   .   .  aV9 
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #15
+Attacker
+Move from B4 to B3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF8 aP4 
+B: dT9  .   .  aV9  .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #16
+Defender
+Attack from A3 to B3
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF7 aP4 
+B: dT9  .   .  aV8  .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #17
+Attacker
+Move from B3 to B2
+	 0   1   2   3   4  
+A: dA9  .  dT9 dF7 aP4 
+B: dT9  .  aV8  .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #18
+Defender
+Attack from A2 to B2
+	 0   1   2   3   4  
+A: dA9  .  dT3 dF7 aP4 
+B: dT9  .  aV2  .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #19
+Attacker
+Move from B2 to B1
+	 0   1   2   3   4  
+A: dA9  .  dT3 dF7 aP4 
+B: dT9 aV2  .   .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #20
+Defender
+A3 self-destructed. 
+	 0   1   2   3   4  
+A: dA9  .  dT1  .  aP2 
+B: dT9 aV2  .   .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #21
+Attacker
+Move from B1 to A1
+	 0   1   2   3   4  
+A: dA9 aV2 dT1  .  aP2 
+B: dT9  .   .   .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #22
+Defender
+Attack from A0 to A1
+	 0   1   2   3   4  
+A:  .   .  dT1  .  aP2 
+B: dT9  .   .   .   .  
+C: dF9 dP9  .   .   .  
+D:  .   .   .  aF9  .  
+E:  .   .  aP9 aV9 aA9 
+
+------------------------
+Turn #23
+Attacker
+
+4. Game Result
+Attacker wins in 23 turns
