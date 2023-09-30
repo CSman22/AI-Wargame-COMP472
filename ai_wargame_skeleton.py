@@ -528,7 +528,7 @@ class Game:
                     attacker = Coord.from_string(
                         input("Enter the attacker's coordinates: ")
                     )
-                    print(f"attacker coord: {attacker}")
+                    # print(f"attacker coord: {attacker}")
 
                     target = Coord.from_string(
                         input("Enter the target's coordinates: ")
@@ -539,7 +539,7 @@ class Game:
                         self.next_turn()
 
                         # Record the attack action to the file
-                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
+                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.col} to {chr(65 + target.row)}{target.col}\n"
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
                             file.write(actionInfo)
@@ -562,7 +562,7 @@ class Game:
                         self.next_turn()
 
                         # Record the repair action to the file
-                        actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.row} to {chr(65 + target.row)}{target.col}\n"
+                        actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.col} to {chr(65 + target.row)}{target.col}\n"
                         actionInfo += f"\t{self.board_to_string()}"
                         with open(filename, "a") as file:
                             file.write(actionInfo)
@@ -587,7 +587,7 @@ class Game:
                                 self.next_turn()
 
                                 # Record the attack action to the file
-                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-desctructed. \n"
+                                actionInfo = f"{chr(65 + unit.row)}{unit.col} self-destructed. \n"
                                 actionInfo += f"\t{self.board_to_string()}"
                                 with open(filename, "a") as file:
                                     file.write(actionInfo)
