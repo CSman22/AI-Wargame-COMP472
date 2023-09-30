@@ -548,7 +548,7 @@ class Game:
                         with open(filename, "a") as file:
                             file.write(actionInfo)
 
-                        break
+                            break
                     else:
                         print(result)
 
@@ -580,7 +580,7 @@ class Game:
                         with open(filename, "a") as file:
                             file.write(actionInfo)
 
-                        break
+                            break
                     else:
                         print("The repair action is not valid! Try again.")
 
