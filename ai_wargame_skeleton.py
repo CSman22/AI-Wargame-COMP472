@@ -337,7 +337,7 @@ class Game:
                     self._defender_has_ai = False
 
     def is_valid_move(self, coords: CoordPair) -> tuple[bool, str]:
-        """Validate a move expressed as a CoordPair. TODO: Check the move set of every unit"""
+        """Validate a move expressed as a CoordPair."""
         # check if coordinate is within the board
         if not self.is_valid_coord(coords.src) or not self.is_valid_coord(coords.dst):
             return (False, "Coordinate not within board! Try again.\n")
@@ -400,7 +400,7 @@ class Game:
         return (True, "")
 
     def perform_move(self, coords: CoordPair) -> Tuple[bool, str]:
-        """Validate and perform a move expressed as a CoordPair. TODO: WRITE MISSING CODE!!!"""
+        """Validate and perform a move expressed as a CoordPair."""
         (success, msg) = self.is_valid_move(coords)
         if success:
             self.set(coords.dst, self.get(coords.src))
@@ -479,11 +479,7 @@ class Game:
         while True:
             s = input(f"Player {self.next_player.name}, enter your move: ")
             coords = CoordPair.from_string(s)
-            if (
-                coords is not None
-                and self.is_valid_coord(coords.src)
-                and self.is_valid_coord(coords.dst)
-            ):
+            if coords is not None:
                 return coords
             else:
                 print("Not a coordinate (e.g. c4 b4)! Try again.\n")
@@ -521,18 +517,26 @@ class Game:
 
                         break
                     else:
-                        print("The move is not valid! Try again.")
+                        # Print Error message
+                        print(result)
 
                 # Handle the 'Attack' action
                 elif action_choice == 2:
-                    attacker = Coord.from_string(
-                        input("Enter the attacker's coordinates: ")
-                    )
-                    # print(f"attacker coord: {attacker}")
+                    while True:
+                        attacker = Coord.from_string(
+                            input("Enter the unit's coordinate: ")
+                        )
+                        if attacker is not None:
+                            target = Coord.from_string(
+                                input("Enter the target's coordinate: ")
+                            )
+                            if target is not None:
+                                break
+                            else:
+                                print("Not a coordinate (e.g. c4)! Try again.\n")
+                        else:
+                            print("Not a coordinate (e.g. c4)! Try again.\n")
 
-                    target = Coord.from_string(
-                        input("Enter the target's coordinates: ")
-                    )
                     (success, result) = self.attack(attacker, target)
                     if success:
                         print(result)
@@ -546,16 +550,25 @@ class Game:
 
                         break
                     else:
-                        print("The attack is not valid! Try again.")
+                        print(result)
 
                 # Handle the 'Repair' action
                 elif action_choice == 3:
-                    repairer = Coord.from_string(
-                        input("Enter the repairer's coordinates: ")
-                    )
-                    target = Coord.from_string(
-                        input("Enter the target's coordinates: ")
-                    )
+                    while True:
+                        repairer = Coord.from_string(
+                            input("Enter the repairer's coordinates: ")
+                        )
+                        if repairer is not None:
+                            target = Coord.from_string(
+                                input("Enter the target's coordinate: ")
+                            )
+                            if target is not None:
+                                break
+                            else:
+                                print("Not a coordinate (e.g. c4)! Try again.\n")
+                        else:
+                            print("Not a coordinate (e.g. c4)! Try again.\n")
+
                     (success, result) = self.repair(repairer, target)
                     if success:
                         print(result)
@@ -574,10 +587,10 @@ class Game:
                 # Handle the 'Self-destruct' action
                 elif action_choice == 4:
                     unit = Coord.from_string(
-                        input("Enter the unit's coordinates to self-destruct: ")
+                        input("Enter the attacker's coordinates to self-destruct: ")
                     )
                     if unit is None:
-                        print("Invalid coordinates. Please try again!")
+                        print("Invalid coordinates. Please try again!\n")
                         break
                     if self.is_valid_coord(unit):
                         if self.board_belongs_to_current_player(unit):
@@ -594,17 +607,17 @@ class Game:
                                 break
                             else:
                                 print(
-                                    "The self-destruct action is not valid! Try again."
+                                    "The self-destruct action is not valid! Try again.\n"
                                 )
                         else:
-                            print("You can't self-destruct an opponent's unit!")
+                            print("You can't self-destruct an opponent's unit!\n")
 
                 else:
-                    print("Invalid choice! Please choose a number between 1 and 4.")
+                    print("Invalid choice! Please choose a number between 1 and 4.\n")
 
             except ValueError:
                 # Handle invalid input types (e.g., non-numeric input)
-                print("Invalid input! Please enter a valid number.")
+                print("Invalid input! Please enter a valid number.\n")
 
     def computer_turn(self) -> CoordPair | None:
         """Computer plays a move."""
@@ -791,15 +804,15 @@ class Game:
 
         # Rule 1: Check if either the attacker or target unit is None, indicating an invalid attack attempt
         if attacker_unit is None or target_unit is None:
-            return False, "Invalid attack attempt"
+            return False, "Invalid attack attempt! Try again.\n"
 
         # Rule 2：Check if the attacker and target units belong to different players (are adversarial)
         if not attacker_unit.player.next() == target_unit.player:
-            return False, "Units are not adversarial"
+            return False, "Units are not adversarial! Try again.\n"
 
         # Rule 3: Check if the attacker and target units are adjacent on the board
         if not self.is_adjacent(attacker_coord, target_coord):
-            return False, "Units are not adjacent"
+            return False, "Units are not adjacent! Try again.\n"
 
         # Calculate and apply damage to the target unit based on the attacker unit's damage amount
         damage = attacker_unit.damage_amount(target_unit)
