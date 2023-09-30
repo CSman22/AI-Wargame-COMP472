@@ -528,23 +528,22 @@ class Game:
                     attacker = Coord.from_string(
                         input("Enter the attacker's coordinates: ")
                     )
-                    print(f"attacker coord: {attacker}")
-
                     target = Coord.from_string(
                         input("Enter the target's coordinates: ")
                     )
-                    (success, result) = self.attack(attacker, target)
-                    if success:
-                        print(result)
-                        self.next_turn()
+                    if self.is_valid_coord(attacker) and self.is_valid_coord(target):
+                        (success, result) = self.attack(attacker, target)
+                        if success:
+                            print(result)
+                            self.next_turn()
 
-                        # Record the attack action to the file
-                        actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
-                        actionInfo += f"\t{self.board_to_string()}"
-                        with open(filename, "a") as file:
-                            file.write(actionInfo)
+                            # Record the attack action to the file
+                            actionInfo = f"Attack from {chr(65 + attacker.row)}{attacker.row} to {chr(65 + target.row)}{target.col}\n"
+                            actionInfo += f"\t{self.board_to_string()}"
+                            with open(filename, "a") as file:
+                                file.write(actionInfo)
 
-                        break
+                            break
                     else:
                         print("The attack is not valid! Try again.")
 
@@ -556,18 +555,19 @@ class Game:
                     target = Coord.from_string(
                         input("Enter the target's coordinates: ")
                     )
-                    (success, result) = self.repair(repairer, target)
-                    if success:
-                        print(result)
-                        self.next_turn()
+                    if self.is_valid_coord(repairer) and self.is_valid_coord(target):
+                        (success, result) = self.repair(repairer, target)
+                        if success:
+                            print(result)
+                            self.next_turn()
 
-                        # Record the repair action to the file
-                        actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.row} to {chr(65 + target.row)}{target.col}\n"
-                        actionInfo += f"\t{self.board_to_string()}"
-                        with open(filename, "a") as file:
-                            file.write(actionInfo)
+                            # Record the repair action to the file
+                            actionInfo = f"Repair from {chr(65 + repairer.row)}{repairer.row} to {chr(65 + target.row)}{target.col}\n"
+                            actionInfo += f"\t{self.board_to_string()}"
+                            with open(filename, "a") as file:
+                                file.write(actionInfo)
 
-                        break
+                            break
                     else:
                         print("The repair action is not valid! Try again.")
 
@@ -587,7 +587,7 @@ class Game:
                                 self.next_turn()
 
                                 # Record the attack action to the file
-                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-desctructed. \n"
+                                actionInfo = f"{chr(65 + unit.row)}{unit.row} self-destructed. \n"
                                 actionInfo += f"\t{self.board_to_string()}"
                                 with open(filename, "a") as file:
                                     file.write(actionInfo)

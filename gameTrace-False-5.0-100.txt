@@ -18,39 +18,47 @@ E:  .   .  aP9 aV9 aA9
 ------------------------
 Turn #1
 Attacker
-D3 self-desctructed. 
+Move from C4 to C3
 	 0   1   2   3   4  
 A: dA9 dT9 dF9  .   .  
 B: dT9 dP9  .   .   .  
-C: dF9  .   .   .  aP7 
-D:  .   .   .   .  aV7 
-E:  .   .  aP7 aV7 aA7 
+C: dF9  .   .  aP9  .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
 
 ------------------------
 Turn #2
 Defender
-C2 self-desctructed. 
+Move from C0 to C1
 	 0   1   2   3   4  
 A: dA9 dT9 dF9  .   .  
-B: dT7 dP7  .   .   .  
-C:  .   .   .   .  aP7 
-D:  .   .   .   .  aV7 
-E:  .   .  aP7 aV7 aA7 
+B: dT9 dP9  .   .   .  
+C:  .  dF9  .  aP9  .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
 
 ------------------------
 Turn #3
 Attacker
-E4 self-desctructed. 
+Move from C3 to C2
 	 0   1   2   3   4  
 A: dA9 dT9 dF9  .   .  
-B: dT7 dP7  .   .   .  
-C:  .   .   .   .  aP7 
-D:  .   .   .   .  aV5 
-E:  .   .  aP7 aV5  .  
+B: dT9 dP9  .   .   .  
+C:  .  dF9 aP9  .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
 
 ------------------------
 Turn #4
 Defender
+Attack from C2 to C2
+	 0   1   2   3   4  
+A: dA9 dT9 dF9  .   .  
+B: dT9 dP9  .   .   .  
+C:  .  dF8 aP8  .   .  
+D:  .   .   .  aF9 aV9 
+E:  .   .  aP9 aV9 aA9 
 
-4. Game Result
-Defender wins in 4 turns
+------------------------
+Turn #5
+Attacker
