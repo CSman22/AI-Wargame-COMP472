@@ -101,12 +101,12 @@ class Unit:
             return target.health
         return amount
 
-    def repair_amount(self, target: Unit) -> int:
+    def repair_amount(self, target: Unit) -> tuple[int, str]:
         """How much can this unit repair another unit."""
         amount = self.repair_table[self.type.value][target.type.value]
         if target.health + amount > 9:
-            return 9 - target.health
-        return amount
+            return [9 - target.health, "full"]
+        return [amount, ""]
 
     def belongs_to(self, player):
         """Check if this unit belongs to the specified player."""
@@ -575,7 +575,7 @@ class Game:
                             print(result)
 
                     # Handle the 'Repair' action
-                    elif src_unit.player == dst_unit.player:
+                    elif src_unit.player == dst_unit.player and mv.src != mv.dst:
                         (success, result) = self.repair(mv.src, mv.dst)
                         if success:
                             print(result)
@@ -1022,8 +1022,13 @@ class Game:
             return False, "Invalid repair action: units are not friendly\n"
 
         # Rule 3a: Check if the repair leads to a change in health
-        repair_amount = repairer_unit.repair_amount(target_unit)
-        if repair_amount == 0:
+        (repair_amount, result) = repairer_unit.repair_amount(target_unit)
+        if repair_amount == 0 and result == "full":
+            return (
+                False,
+                f"Invalid repair action: {target_unit} is already full HP\n",
+            )
+        elif repair_amount == 0:
             return (
                 False,
                 f"Invalid repair action: {repairer_unit} cannot repair {target_unit}\n",
