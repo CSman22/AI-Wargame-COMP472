@@ -101,12 +101,10 @@ class Unit:
             return target.health
         return amount
 
-    def repair_amount(self, target: Unit) -> tuple[int, str]:
+    def repair_amount(self, target: Unit) -> int:
         """How much can this unit repair another unit."""
         amount = self.repair_table[self.type.value][target.type.value]
-        if target.health + amount > 9:
-            return [9 - target.health, "full"]
-        return [amount, ""]
+        return amount
 
     def belongs_to(self, player):
         """Check if this unit belongs to the specified player."""
@@ -372,7 +370,7 @@ class Game:
                 ):
                     return (
                         False,
-                        f"{unit} can only move up or left by one! Try again.\n",
+                        f"Invalid move attempt: {unit} can only move up or left by one!\n",
                     )
 
             else:
@@ -383,7 +381,7 @@ class Game:
                 ):
                     return (
                         False,
-                        f"{unit} can only move down or right by one! Try again.\n",
+                        f"Invalid move attempt: {unit} can only move down or right by one!\n",
                     )
 
             # check if unit is engaged in battle
@@ -392,7 +390,7 @@ class Game:
                 if adj_unit is not None and adj_unit.player != self.next_player:
                     return (
                         False,
-                        f"{unit} is engaged in battle with {adj_unit}! Try again.\n",
+                        f"Invalid move attempt: {unit} is engaged in battle with {adj_unit}!\n",
                     )
         else:
             # Check if the virus or the tech is moving left, up, right or down by one
@@ -404,12 +402,12 @@ class Game:
             ):
                 return (
                     False,
-                    f"{unit} can only move left, up, right or down by one! Try again.\n",
+                    f"Invalid move attempt: {unit} can only move left, up, right or down by one!\n",
                 )
         # Check destination space
         unit = self.get(coords.dst)
         if unit is not None:
-            return (False, "Destination space occupied! Try again.\n")
+            return (False, "Invalid move attempt: Destination space occupied!\n")
         return (True, "Movement performed successfully")
 
     def perform_move(self, coords: CoordPair) -> Tuple[bool, str]:
@@ -977,15 +975,15 @@ class Game:
 
         # Rule 1: Check if either the attacker or target unit is None, indicating an invalid attack attempt
         if attacker_unit is None or target_unit is None:
-            return False, "Invalid attack attempt! Try again.\n"
+            return False, "Invalid attack attempt!\n"
 
         # Rule 2：Check if the attacker and target units belong to different players (are adversarial)
         if not attacker_unit.player.next() == target_unit.player:
-            return False, "Units are not adversarial! Try again.\n"
+            return False, "Invalid attack attempt: units are not adversarial!\n"
 
         # Rule 3: Check if the attacker and target units are adjacent on the board
         if not self.is_adjacent(attacker_coord, target_coord):
-            return False, "Units are not adjacent! Try again.\n"
+            return False, "Invalid attack attempt: units are not adjacent!\n"
 
         # Calculate and apply damage to the target unit based on the attacker unit's damage amount
         damage = attacker_unit.damage_amount(target_unit)
@@ -1011,7 +1009,7 @@ class Game:
 
         # Rule 1: Check if units are adjacent
         if not self.is_adjacent(repairer_coord, target_coord):
-            return False, "Invalid repair action: units are not adjacent\n"
+            return False, "Invalid repair action: units are not adjacent!\n"
 
         # Rule 2: Check if units are friendly
         if (
@@ -1019,26 +1017,21 @@ class Game:
             or target_unit is None
             or not repairer_unit.player == target_unit.player
         ):
-            return False, "Invalid repair action: units are not friendly\n"
+            return False, "Invalid repair action: units are not friendly!\n"
 
         # Rule 3a: Check if the repair leads to a change in health
-        (repair_amount, result) = repairer_unit.repair_amount(target_unit)
-        if repair_amount == 0 and result == "full":
+        repair_amount = repairer_unit.repair_amount(target_unit)
+        if repair_amount == 0:
             return (
                 False,
-                f"Invalid repair action: {target_unit} is already full HP\n",
-            )
-        elif repair_amount == 0:
-            return (
-                False,
-                f"Invalid repair action: {repairer_unit} cannot repair {target_unit}\n",
+                f"Invalid repair action: {repairer_unit} cannot repair {target_unit}!\n",
             )
 
         # Rule 3b: Check if target unit's health is already at 9
         if target_unit.health == 9:
             return (
                 False,
-                "Invalid repair action: Target unit's health is already at maximum\n",
+                f"Invalid repair action: {target_unit}'s health is already at maximum!\n",
             )
 
         # Apply the repair amount to the target unit's health
@@ -1047,7 +1040,7 @@ class Game:
         # Return success message with details of the repair action
         return (
             True,
-            f"{repairer_unit.player.name}'s {repairer_unit.type.name} repaired {target_unit.player.name}'s {target_unit.type.name}",
+            f"{repairer_unit.player.name}'s {repairer_unit.type.name} repaired {target_unit.player.name}'s {target_unit.type.name}.",
         )
 
     # Check if the coordinates are adjacent
