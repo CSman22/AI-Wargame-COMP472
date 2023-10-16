@@ -1118,16 +1118,18 @@ class Game:
 
 ##############################################################################################################
 def choose_game_mode_interactive():
-    print("\nChoose a game mode:")
+    print("------------------------------------")
+    print("Welcome to the AI Wargame!")
+    print("Choose a game mode:")
     print("1. AttackerVsDefender")
     print("2. AttackerVsComp")
     print("3. CompVsDefender")
     print("4. CompVsComp")
     choice = int(input("Enter your choice (1-4): "))
     while choice not in [1, 2, 3, 4]:
-        print("Invalid choice. Please choose between 1 and 4.")
+        print("Invalid choice. Please choose between 1 and 4.\n")
         choice = int(input("Enter your choice (1-4): "))
-    print("\n------------------------------------")
+    print("------------------------------------")
     match choice:
         case 1:
             print("Mode: Attacker vs Defender")
@@ -1140,15 +1142,43 @@ def choose_game_mode_interactive():
     return GameType(choice - 1)
 
 
-def choose_alpha_pruning() -> bool:
+def choose_alpha_beta() -> bool:
     while True:
-        user_input = input("Use Alpha-Beta Pruning (Y/N)? ").upper()
+        user_input = input("Use Alpha-Beta Pruning (Y/N): ").upper()
         if user_input == "Y":
             return True
         elif user_input == "N":
             return False
         else:
-            print("Invalid input: Please enter 'Y' or 'N'!")
+            print("Invalid input: Please enter 'Y' or 'N'!\n")
+
+
+def choose_allowed_time() -> float:
+    while True:
+        try:
+            user_input = float(
+                input(
+                    "Maximum allowed time for the computer to return a move(seconds): "
+                )
+            )
+            if user_input > 0:
+                return user_input
+            else:
+                print("Invalid input: Please choose a number above 0 seconds.\n")
+        except ValueError:
+            print("Invalid input: Please enter a valid time(seconds).\n")
+
+
+def choose_max_turns() -> int:
+    while True:
+        try:
+            user_input = int(input("Maximum number of turns: "))
+            if user_input > 0:
+                return user_input
+            else:
+                print("Invalid input: Please choose a number above 0.\n")
+        except ValueError:
+            print("Invalid input: Please enter a valid number. \n")
 
 
 def main():
@@ -1181,13 +1211,8 @@ def main():
         else:
             chosen_game_type = GameType.CompVsComp
 
-    # Ask the user whether to include Alpha-Beta Pruning
-    include_alpha_pruning = False
-    if chosen_game_type != GameType.AttackerVsDefender:
-        include_alpha_pruning = choose_alpha_pruning()
-
     # set up game options
-    options = Options(game_type=chosen_game_type, alpha_beta=include_alpha_pruning)
+    options = Options(game_type=chosen_game_type)
 
     # override class defaults via command line options
     if args.max_depth is not None:
@@ -1196,6 +1221,20 @@ def main():
         options.max_time = args.max_time
     if args.broker is not None:
         options.broker = args.broker
+
+    # Prompt the user for alpha-beta, allowed time, and max turns
+    include_alpha_beta = False
+    max_allowed_time = 0
+    max_turns = 0
+
+    max_turns = choose_max_turns()
+    if chosen_game_type != GameType.AttackerVsDefender:
+        max_allowed_time = choose_allowed_time()
+        include_alpha_beta = choose_alpha_beta()
+
+    options.alpha_beta = include_alpha_beta
+    options.max_time = max_allowed_time
+    options.max_turns = max_turns
 
     # create a new game
     game = Game(options=options)
