@@ -250,7 +250,7 @@ class Options:
     min_depth: int | None = 2
     max_time: float | None = 5.0
     game_type: GameType = GameType.AttackerVsDefender
-    alpha_beta: bool = True
+    alpha_beta: bool = False
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
@@ -355,14 +355,14 @@ class Game:
 
     def is_movement_valid(self, coords: CoordPair) -> Tuple[bool, str]:
         """Validate if the movement action is valid"""
-        unit = self.get(coords.src)
-        # check if the unit is an AI, firewall or a program.
+        src_unit = self.get(coords.src)
+        # check if the src unit is an AI, firewall or a program.
         if (
-            unit.type == UnitType.AI
-            or unit.type == UnitType.Firewall
-            or unit.type == UnitType.Program
+            src_unit.type == UnitType.AI
+            or src_unit.type == UnitType.Firewall
+            or src_unit.type == UnitType.Program
         ):
-            if unit.player == Player.Attacker:
+            if src_unit.player == Player.Attacker:
                 # check if attacking unit is only moving up or left
                 if not (
                     coords.dst == Coord(coords.src.row - 1, coords.src.col)
@@ -370,7 +370,7 @@ class Game:
                 ):
                     return (
                         False,
-                        f"Invalid move attempt: {unit} can only move up or left by one!\n",
+                        f"Invalid move attempt: {src_unit} can only move up or left by one!\n",
                     )
 
             else:
@@ -381,7 +381,7 @@ class Game:
                 ):
                     return (
                         False,
-                        f"Invalid move attempt: {unit} can only move down or right by one!\n",
+                        f"Invalid move attempt: {src_unit} can only move down or right by one!\n",
                     )
 
             # check if unit is engaged in battle
@@ -390,7 +390,7 @@ class Game:
                 if adj_unit is not None and adj_unit.player != self.next_player:
                     return (
                         False,
-                        f"Invalid move attempt: {unit} is engaged in battle with {adj_unit}!\n",
+                        f"Invalid move attempt: {src_unit} is engaged in battle with {adj_unit}!\n",
                     )
         else:
             # Check if the virus or the tech is moving left, up, right or down by one
@@ -402,13 +402,13 @@ class Game:
             ):
                 return (
                     False,
-                    f"Invalid move attempt: {unit} can only move left, up, right or down by one!\n",
+                    f"Invalid move attempt: {src_unit} can only move left, up, right or down by one!\n",
                 )
         # Check destination space
-        unit = self.get(coords.dst)
-        if unit is not None:
+        dst_unit = self.get(coords.dst)
+        if dst_unit is not None:
             return (False, "Invalid move attempt: Destination space occupied!\n")
-        return (True, "Movement performed successfully")
+        return (True, f"{src_unit} at {coords.src} moved to {coords.dst}")
 
     def perform_move(self, coords: CoordPair) -> Tuple[bool, str]:
         """Validate and perform a move expressed as a CoordPair."""
@@ -429,16 +429,17 @@ class Game:
 
         # If the target T is an empty cell, the action is movement
         elif dst_unit is None:
-            if self.is_valid_move(coords):
-                (success, result) = self.is_movement_valid(coords)
+            (success, result) = self.is_valid_move(coords)
+            if success:
+                (success, move_result) = self.is_movement_valid(coords)
                 if success:
                     self.set(coords.dst, src_unit)
                     self.set(coords.src, None)
-                    return (True, result)
+                    return (True, move_result)
                 else:
-                    return (False, result)
+                    return (False, move_result)
             else:
-                return (False, "Invalid move")
+                return (False, result)
 
         # If the target T is an adversarial unit, the action is an attack
         elif dst_unit.player != src_unit.player:
@@ -543,7 +544,7 @@ class Game:
                         if success:
                             self.set(mv.dst, self.get(mv.src))
                             self.set(mv.src, None)
-                            print("Move performed successfully")
+                            print(result)
                             self.next_turn()
 
                             # Record the move action to the file
@@ -724,6 +725,7 @@ class Game:
     def move_candidates(self) -> Iterable[CoordPair]:
         """
         Generate all possible move candidates for the next player.
+        Suggesting certain units first
 
         This method considers all types of moves:
         1. Regular movement to an empty cell.
@@ -738,31 +740,29 @@ class Game:
         # Initialize a CoordPair to store the current move being considered
         move = CoordPair()
 
-        # Iterate over all units of the next player
-        for src, _ in self.player_units(self.next_player):
-            move.src = src
+        # Iterate over all units to suggest in certain order
+        for unit_type in [
+            UnitType.Firewall,
+            UnitType.Program,
+            UnitType.Tech,
+            UnitType.Virus,
+            UnitType.AI,
+        ]:
+            for src, unit in self.player_units(self.next_player):
+                if unit.type == unit_type:
+                    move.src = src
 
-            # Check all adjacent cells as potential destinations
-            for dst in src.iter_adjacent():
-                move.dst = dst
+                    # Check all adjacent cells as potential action
+                    for dst in src.iter_adjacent():
+                        move.dst = dst
 
-                # If moving to the destination is valid, yield the move
-                if self.is_valid_move(move):
-                    if self.is_movement_valid(move):
-                        yield move.clone()
+                        (success, result) = self.is_valid_move(move)
+                        if success:
+                            yield move.clone()
 
-                # Check if a repair move is possible
-                unit_at_dst = self.get(dst)
-                if (
-                    unit_at_dst is not None
-                    and unit_at_dst.player == self.next_player
-                    and src != dst
-                ):
+                    # Consider the self-destruction move where source and destination are the same
+                    move.dst = src
                     yield move.clone()
-
-            # Consider the self-destruction move where source and destination are the same
-            move.dst = src
-            yield move.clone()
 
     # def random_move(self) -> Tuple[int, CoordPair | None, float]:
     #     """Returns a random move."""
@@ -784,21 +784,33 @@ class Game:
         # Record the start time to calculate the time taken by the algorithm
         start_time = datetime.now()
 
-        # Check if alpha-beta pruning should be used
-        if self.options.alpha_beta:
+        # Check if maximizing for attacker
+        if self.next_player == Player.Attacker:
             # Use the Minimax algorithm with Alpha-Beta pruning to get the best move and its heuristic score
             (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth, float("-inf"), float("inf"), True
+                self.options.max_depth,
+                float("-inf"),
+                float("inf"),
+                True,
+                self.options.alpha_beta,
             )
         else:
             # Use just the Minimax algorithm to get the best move and its heuristic score
             # Note: You'll need to implement the minimax method without alpha-beta pruning
             (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth, float("-inf"), float("inf"), False
+                self.options.max_depth,
+                float("-inf"),
+                float("inf"),
+                False,
+                self.options.alpha_beta,
             )
 
         # Calculate the time taken by the algorithm
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
+
+        # Check if the elapsed time or the estimated elapsed time goes over the allowed time
+        #  # TODO ai went over allowed time thus loses
+        # if elapsed_seconds > self.options.max_time:
 
         # Update the total time taken by all calls to this method
         self.stats.total_seconds += elapsed_seconds
@@ -827,10 +839,7 @@ class Game:
             + 3 * self.count_units(UnitType.Program, Player.Defender)
             + 9999 * self.count_units(UnitType.AI, Player.Defender)
         )
-        if self.next_player == Player.Attacker:
-            return score_p1 - score_p2
-        else:
-            return score_p2 - score_p1
+        return score_p1 - score_p2
 
     def count_units(self, unit_type: UnitType, player: Player) -> int:
         """Count the number of units of a specific type and player on the board."""
@@ -845,7 +854,9 @@ class Game:
                     count += 1
         return count
 
-    def minimax_alpha_beta(self, depth, alpha, beta, is_maximizing):
+    def minimax_alpha_beta(
+        self, depth: int, alpha: float, beta: float, is_maximizing: bool, alpha_beta
+    ):
         """
         Use the Minimax algorithm with Alpha-Beta pruning to determine the best move.
 
@@ -877,15 +888,18 @@ class Game:
                 if not success:
                     continue
                 # Recursively evaluate the board after the move
-                eval_value, _ = self.minimax_alpha_beta(depth - 1, alpha, beta, False)
+                eval_value, _ = simulated_game.minimax_alpha_beta(
+                    depth - 1, alpha, beta, False, alpha_beta
+                )
                 # Update the best move if the current move has a better evaluation
                 if eval_value > max_eval:
                     max_eval = eval_value
                     best_move = move
                 # Update alpha and prune the search tree if necessary
-                alpha = max(alpha, eval_value)
-                if beta <= alpha:
-                    break
+                if alpha_beta:
+                    alpha = max(alpha, eval_value)
+                    if beta < alpha:
+                        break
             return max_eval, best_move
 
         # Minimizing player's turn
@@ -899,15 +913,18 @@ class Game:
                 if not success:
                     continue
                 # Recursively evaluate the board after the move
-                eval_value, _ = self.minimax_alpha_beta(depth - 1, alpha, beta, True)
+                eval_value, _ = simulated_game.minimax_alpha_beta(
+                    depth - 1, alpha, beta, True, alpha_beta
+                )
                 # Update the best move if the current move has a better evaluation
                 if eval_value < min_eval:
                     min_eval = eval_value
                     best_move = move
                 # Update beta and prune the search tree if necessary
-                beta = min(beta, eval_value)
-                if beta <= alpha:
-                    break
+                if alpha_beta:
+                    beta = min(beta, eval_value)
+                    if beta < alpha:
+                        break
             return min_eval, best_move
 
     def post_move_to_broker(self, move: CoordPair):
@@ -1123,6 +1140,17 @@ def choose_game_mode_interactive():
     return GameType(choice - 1)
 
 
+def choose_alpha_pruning() -> bool:
+    while True:
+        user_input = input("Use Alpha-Beta Pruning (Y/N)? ").upper()
+        if user_input == "Y":
+            return True
+        elif user_input == "N":
+            return False
+        else:
+            print("Invalid input: Please enter 'Y' or 'N'!")
+
+
 def main():
     # parse command line arguments
     parser = argparse.ArgumentParser(
@@ -1153,8 +1181,13 @@ def main():
         else:
             chosen_game_type = GameType.CompVsComp
 
+    # Ask the user whether to include Alpha-Beta Pruning
+    include_alpha_pruning = False
+    if chosen_game_type != GameType.AttackerVsDefender:
+        include_alpha_pruning = choose_alpha_pruning()
+
     # set up game options
-    options = Options(game_type=chosen_game_type)
+    options = Options(game_type=chosen_game_type, alpha_beta=include_alpha_pruning)
 
     # override class defaults via command line options
     if args.max_depth is not None:
