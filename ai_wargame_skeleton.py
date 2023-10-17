@@ -722,7 +722,9 @@ class Game:
     def suggest_move(self) -> CoordPair | None:
         """Suggest the next move using minimax alpha beta. TODO: REPLACE RANDOM_MOVE WITH PROPER GAME LOGIC!!!"""
         start_time = datetime.now()
-        (score, move, avg_depth) = self.random_move()
+        (score, move) = self.minimax_alpha_beta(
+            self.options.max_depth, float("-inf"), float("inf"), True
+        )
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
         self.stats.total_seconds += elapsed_seconds
         print(f"Heuristic score: {score}")
@@ -738,6 +740,69 @@ class Game:
             )
         print(f"Elapsed time: {elapsed_seconds:0.1f}s")
         return move
+
+    def evaluate_board(self):
+        # Calculate the weighted sum of Player 1's units
+        score_p1 = (
+            3 * self.count_units(UnitType.Virus, Player.Attacker)
+            + 3 * self.count_units(UnitType.Tech, Player.Attacker)
+            + 3 * self.count_units(UnitType.Firewall, Player.Attacker)
+            + 3 * self.count_units(UnitType.Program, Player.Attacker)
+            + 9999 * self.count_units(UnitType.AI, Player.Attacker)
+        )
+        # Calculate the weighted sum of Player 2's units
+        score_p2 = (
+            3 * self.count_units(UnitType.Virus, Player.Defender)
+            + 3 * self.count_units(UnitType.Tech, Player.Defender)
+            + 3 * self.count_units(UnitType.Firewall, Player.Defender)
+            + 3 * self.count_units(UnitType.Program, Player.Defender)
+            + 9999 * self.count_units(UnitType.AI, Player.Defender)
+        )
+        return score_p1 - score_p2
+
+    def count_units(self, unit_type: UnitType, player: Player) -> int:
+        """Count the number of units of a specific type and player on the board."""
+        count = 0
+        for row in self.board:
+            for unit in row:
+                if (
+                    unit is not None
+                    and unit.type == unit_type
+                    and unit.player == player
+                ):
+                    count += 1
+        return count
+
+    def minimax_alpha_beta(self, depth, alpha, beta, is_maximizing):
+        if depth == 0 or self.is_finished():
+            return self.evaluate_board(), None  # Fixed this line
+        best_move = None
+        if is_maximizing:
+            max_eval = float("-inf")
+            for move in self.move_candidates():
+                simulated_game = self.clone()
+                simulated_game.perform_move(move)
+                eval_value, _ = self.minimax_alpha_beta(depth - 1, alpha, beta, False)
+                if eval_value > max_eval:
+                    max_eval = eval_value
+                    best_move = move
+                alpha = max(alpha, eval_value)
+                if beta <= alpha:
+                    break
+            return max_eval, best_move
+        else:
+            min_eval = float("inf")
+            for move in self.move_candidates():
+                simulated_game = self.clone()
+                simulated_game.perform_move(move)
+                eval_value, _ = self.minimax_alpha_beta(depth - 1, alpha, beta, True)
+                if eval_value < min_eval:
+                    min_eval = eval_value
+                    best_move = move
+                beta = min(beta, eval_value)
+                if beta <= alpha:
+                    break
+            return min_eval, best_move
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
@@ -923,6 +988,17 @@ class Game:
 
 
 ##############################################################################################################
+def choose_game_mode_interactive():
+    print("Choose a game mode:")
+    print("0. AttackerVsDefender")
+    print("1. AttackerVsComp")
+    print("2. CompVsDefender")
+    print("3. CompVsComp")
+    choice = int(input("Enter your choice (0-3): "))
+    while choice not in [0, 1, 2, 3]:
+        print("Invalid choice. Please choose between 0 and 3.")
+        choice = int(input("Enter your choice (0-3): "))
+    return GameType(choice)
 
 
 def main():
@@ -935,24 +1011,28 @@ def main():
     parser.add_argument(
         "--game_type",
         type=str,
-        default="manual",
+        default=None,
         help="game type: auto|attacker|defender|manual",
     )
     parser.add_argument("--broker", type=str, help="play via a game broker")
     args = parser.parse_args()
 
     # parse the game type
-    if args.game_type == "attacker":
-        game_type = GameType.AttackerVsComp
-    elif args.game_type == "defender":
-        game_type = GameType.CompVsDefender
-    elif args.game_type == "manual":
-        game_type = GameType.AttackerVsDefender
+    if args.game_type is None:
+        chosen_game_type = choose_game_mode_interactive()
     else:
-        game_type = GameType.CompVsComp
+        # parse the game type based on command line arguments
+        if args.game_type == "attacker":
+            chosen_game_type = GameType.AttackerVsComp
+        elif args.game_type == "defender":
+            chosen_game_type = GameType.CompVsDefender
+        elif args.game_type == "manual":
+            chosen_game_type = GameType.AttackerVsDefender
+        else:
+            chosen_game_type = GameType.CompVsComp
 
     # set up game options
-    options = Options(game_type=game_type)
+    options = Options(game_type=chosen_game_type)
 
     # override class defaults via command line options
     if args.max_depth is not None:
@@ -1002,26 +1082,38 @@ def main():
                 file.write(winnerInfo)
 
             break
-        if game.options.game_type == GameType.AttackerVsDefender:
-            game.human_turn()
-        elif (
-            game.options.game_type == GameType.AttackerVsComp
-            and game.next_player == Player.Attacker
-        ):
-            game.human_turn()
-        elif (
-            game.options.game_type == GameType.CompVsDefender
-            and game.next_player == Player.Defender
-        ):
-            game.human_turn()
-        else:
-            player = game.next_player
-            move = game.computer_turn()
-            if move is not None:
-                game.post_move_to_broker(move)
+        # if game.options.game_type == GameType.AttackerVsDefender:
+        #     game.human_turn()
+        # elif (
+        #     game.options.game_type == GameType.AttackerVsComp
+        #     and game.next_player == Player.Attacker
+        # ):
+        #     game.human_turn()
+        # elif (
+        #     game.options.game_type == GameType.CompVsDefender
+        #     and game.next_player == Player.Defender
+        # ):
+        #     game.human_turn()
+        # else:
+        #     player = game.next_player
+        #     move = game.computer_turn()
+        #     if move is not None:
+        #         game.post_move_to_broker(move)
+        #     else:
+        #         print("Computer doesn't know what to do!!!")
+        #         exit(1)
+
+        # If both players are computers
+        if game.next_player == Player.Attacker:
+            if game.options.game_type == GameType.AttackerVsComp:
+                game.human_turn()
             else:
-                print("Computer doesn't know what to do!!!")
-                exit(1)
+                game.computer_turn()
+        elif game.next_player == Player.Defender:
+            if game.options.game_type == GameType.CompVsDefender:
+                game.human_turn()
+            else:
+                game.computer_turn()
 
 
 ##############################################################################################################
