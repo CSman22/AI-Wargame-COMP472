@@ -889,7 +889,7 @@ class Game:
         virus_multiplier = tech_multiplier = 5
         program_multiplier = firewall_multiplier = 5
         attack_points = healing_points = 20
-        blocking_points = 10
+        blocking_points = 20
         # Calculate the attacker score
         for src_coord, unit in self.player_units(Player.Attacker):
             if unit.type == UnitType.AI:
