@@ -418,13 +418,6 @@ class Game:
 
         # If T = S, the action is self-destruction
         if coords.src == coords.dst:
-            # Prevent AI from self-destructing
-            if self.options.game_type in [
-                GameType.AttackerVsComp,
-                GameType.CompVsDefender,
-                GameType.CompVsComp,
-            ]:
-                return (False, "AI cannot self-destruct")
             return self.self_destruct(coords.src)
 
         # If the target T is an empty cell, the action is movement
@@ -1150,10 +1143,10 @@ def choose_game_mode_interactive():
     print("------------------------------------")
     print("Welcome to the AI Wargame!")
     print("Choose a game mode:")
-    print("1. AttackerVsDefender")
-    print("2. AttackerVsComp")
-    print("3. CompVsDefender")
-    print("4. CompVsComp")
+    print("1. Attacker VS Defender")
+    print("2. Attacker VS Computer")
+    print("3. Computer VS Defender")
+    print("4. Computer VS Computer")
     choice = int(input("Enter your choice (1-4): "))
     while choice not in [1, 2, 3, 4]:
         print("Invalid choice. Please choose between 1 and 4.\n")
@@ -1185,10 +1178,10 @@ def choose_alpha_beta() -> bool:
 def choose_allowed_time() -> float:
     while True:
         user_input = input(
-            "Maximum allowed seconds for the computer to return a move (Default: 6): "
+            "Maximum allowed seconds for the computer to return a move (Default: 5): "
         )
         if user_input.strip() == "":
-            return 6
+            return 5
         try:
             user_input = float(user_input)
             if user_input > 0:
