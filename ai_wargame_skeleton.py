@@ -632,26 +632,34 @@ class Game:
 
         # If a move is suggested
         if mv is not None:
-            # Try to perform the move
-            (success, result) = self.perform_move(mv)
-
-            # If the move is successful
-            if success:
-                print(f"Computer {self.next_player.name}: ", end="")
-                print(result)
-                # Proceed to the next turn
-                self.next_turn()
-            else:
-                # Handle the case where the AI generates an illegal action
-                print("AI generated an illegal action!")
-                # Determine the winner based on the current player (the computer)
+            # If the game is done because of the ai passes the allowed time
+            if self.is_finished():
                 if self.next_player == Player.Attacker:
-                    print("Defender wins!")
-                    self.is_finished()
+                    print("Defender wins due to AI time penalty!")
                 else:
-                    print("Attacker wins!")
-                    self.is_finished()
+                    print("Attacker wins due to AI time penalty!")
                 return None
+            else:
+                # Try to perform the move
+                (success, result) = self.perform_move(mv)
+
+                # If the move is successful
+                if success:
+                    print(f"Computer {self.next_player.name}: ", end="")
+                    print(result)
+                    # Proceed to the next turn
+                    self.next_turn()
+                else:
+                    # Handle the case where the AI generates an illegal action
+                    print("AI generated an illegal action!")
+                    # Determine the winner based on the current player (the computer)
+                    if self.next_player == Player.Attacker:
+                        print("Defender wins due to AI illegal action!")
+                        self.is_finished()
+                    else:
+                        print("Attacker wins due to AI illegal action!")
+                        self.is_finished()
+                    return None
         return mv
 
     def has_winner(self) -> Player | None:
@@ -783,6 +791,10 @@ class Game:
 
         # Record the start time to calculate the time taken by the algorithm
         start_time = datetime.now()
+        # Calculate the remaining time
+        elapsed_seconds = 0
+        remaining_seconds = self.options.max_time - elapsed_seconds
+        new_remaining_seconds = remaining_seconds * 0.9
 
         # Check if maximizing for attacker
         if self.next_player == Player.Attacker:
@@ -793,6 +805,7 @@ class Game:
                 float("inf"),
                 True,
                 self.options.alpha_beta,
+                new_remaining_seconds,
             )
         else:
             # Use just the Minimax algorithm to get the best move and its heuristic score
@@ -803,21 +816,24 @@ class Game:
                 float("inf"),
                 False,
                 self.options.alpha_beta,
+                new_remaining_seconds,
             )
 
         # Calculate the time taken by the algorithm
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
 
-        # Check if the elapsed time or the estimated elapsed time goes over the allowed time
-        #  # TODO ai went over allowed time thus loses
-        # if elapsed_seconds > self.options.max_time:
+        if elapsed_seconds > self.options.max_time:
+            if self.next_player == Player.Attacker:
+                self._attacker_has_ai = False
+            else:
+                self._defender_has_ai = False
 
         # Update the total time taken by all calls to this method
         self.stats.total_seconds += elapsed_seconds
 
         # Print the heuristic score of the best move and the time taken by the algorithm
         print(f"Heuristic score: {score}")
-        print(f"Elapsed time: {elapsed_seconds:0.1f}s")
+        print(f"Elapsed time: {elapsed_seconds:0.2f}s")
 
         # Return the best move
         return move
@@ -855,7 +871,13 @@ class Game:
         return count
 
     def minimax_alpha_beta(
-        self, depth: int, alpha: float, beta: float, is_maximizing: bool, alpha_beta
+        self,
+        depth: int,
+        alpha: float,
+        beta: float,
+        is_maximizing: bool,
+        alpha_beta: bool,
+        remaining_time: float,
     ):
         """
         Use the Minimax algorithm with Alpha-Beta pruning to determine the best move.
@@ -870,12 +892,11 @@ class Game:
         - The heuristic value of the board after the best move.
         - The best move as a CoordPair.
         """
-
-        # Base case: if the search has reached maximum depth or the game is finished
-        if depth == 0 or self.is_finished():
-            return self.evaluate_board(), None
-
+        start_time = datetime.now()
         best_move = None
+        # Base case: if the search has reached maximum depth or the game is finished
+        if depth == 0 or self.is_finished() or remaining_time <= 0:
+            return self.evaluate_board(), None
 
         # Maximizing player's turn
         if is_maximizing:
@@ -887,9 +908,13 @@ class Game:
                 success, _ = simulated_game.perform_move(move)
                 if not success:
                     continue
-                # Recursively evaluate the board after the move
+                # Calculate the remaining time left
+                elapsed_seconds = (datetime.now() - start_time).total_seconds()
+                remaining_time = remaining_time - elapsed_seconds
+                # Switch to the minimizing player for the next recursive call
+                simulated_game.next_player = Player.Defender
                 eval_value, _ = simulated_game.minimax_alpha_beta(
-                    depth - 1, alpha, beta, False, alpha_beta
+                    depth - 1, alpha, beta, False, alpha_beta, remaining_time
                 )
                 # Update the best move if the current move has a better evaluation
                 if eval_value > max_eval:
@@ -912,9 +937,13 @@ class Game:
                 success, _ = simulated_game.perform_move(move)
                 if not success:
                     continue
-                # Recursively evaluate the board after the move
+                # Calculate the remaining time left
+                elapsed_seconds = (datetime.now() - start_time).total_seconds()
+                remaining_time = remaining_time - elapsed_seconds
+                # Switch to the maximizing player for the next recursive call
+                simulated_game.next_player = Player.Attacker
                 eval_value, _ = simulated_game.minimax_alpha_beta(
-                    depth - 1, alpha, beta, True, alpha_beta
+                    depth - 1, alpha, beta, True, alpha_beta, remaining_time
                 )
                 # Update the best move if the current move has a better evaluation
                 if eval_value < min_eval:
@@ -1144,8 +1173,8 @@ def choose_game_mode_interactive():
 
 def choose_alpha_beta() -> bool:
     while True:
-        user_input = input("Use Alpha-Beta Pruning (Y/N): ").upper()
-        if user_input == "Y":
+        user_input = input("Use Alpha-Beta Pruning (Y/N)(Default: Y): ").upper()
+        if user_input == "Y" or user_input.strip() == "":
             return True
         elif user_input == "N":
             return False
@@ -1155,12 +1184,13 @@ def choose_alpha_beta() -> bool:
 
 def choose_allowed_time() -> float:
     while True:
+        user_input = input(
+            "Maximum allowed seconds for the computer to return a move (Default: 6): "
+        )
+        if user_input.strip() == "":
+            return 6
         try:
-            user_input = float(
-                input(
-                    "Maximum allowed time for the computer to return a move(seconds): "
-                )
-            )
+            user_input = float(user_input)
             if user_input > 0:
                 return user_input
             else:
@@ -1171,8 +1201,26 @@ def choose_allowed_time() -> float:
 
 def choose_max_turns() -> int:
     while True:
+        user_input = input("Maximum number of turns (Default:100): ")
+        if user_input.strip() == "":
+            return 100
         try:
-            user_input = int(input("Maximum number of turns: "))
+            user_input = int(user_input)
+            if user_input > 0:
+                return user_input
+            else:
+                print("Invalid input: Please choose a number above 0.\n")
+        except ValueError:
+            print("Invalid input: Please enter a valid number. \n")
+
+
+def choose_max_depth() -> int:
+    while True:
+        user_input = input("Max depth (Default: 3): ")
+        if user_input.strip() == "":
+            return 3
+        try:
+            user_input = int(user_input)
             if user_input > 0:
                 return user_input
             else:
@@ -1225,16 +1273,17 @@ def main():
     # Prompt the user for alpha-beta, allowed time, and max turns
     include_alpha_beta = False
     max_allowed_time = 0
-    max_turns = 0
-
+    max_depth = 0
     max_turns = choose_max_turns()
+    # check if computer is playing
     if chosen_game_type != GameType.AttackerVsDefender:
         max_allowed_time = choose_allowed_time()
+        max_depth = choose_max_depth()
         include_alpha_beta = choose_alpha_beta()
-
     options.alpha_beta = include_alpha_beta
     options.max_time = max_allowed_time
     options.max_turns = max_turns
+    options.max_depth = max_depth
 
     # create a new game
     game = Game(options=options)
@@ -1291,7 +1340,7 @@ def main():
             if move is not None:
                 game.post_move_to_broker(move)
             else:
-                print("Computer doesn't know what to do!!!")
+                # print("Computer doesn't know what to do!!!")
                 exit(1)
 
 
