@@ -788,11 +788,12 @@ class Game:
         # Calculate the remaining time
         elapsed_seconds = 0
         remaining_seconds = self.options.max_time - elapsed_seconds
+        # Give enough time for the ai to stop searching and return back the best outcome it found
         new_remaining_seconds = remaining_seconds * 0.90
 
-        # Check if maximizing for attacker
+        # Check if depth should be labelled for max(attacker) or min(defender)
         if self.next_player == Player.Attacker:
-            # Use the Minimax algorithm with Alpha-Beta pruning to get the best move and its heuristic score
+            # Use the Minimax algorithm to get the best move and its heuristic score for max
             (score, move) = self.minimax_alpha_beta(
                 self.options.max_depth,
                 float("-inf"),
@@ -802,8 +803,7 @@ class Game:
                 new_remaining_seconds,
             )
         else:
-            # Use just the Minimax algorithm to get the best move and its heuristic score
-            # Note: You'll need to implement the minimax method without alpha-beta pruning
+            # Use the Minimax algorithm to get the best move and its heuristic score for min
             (score, move) = self.minimax_alpha_beta(
                 self.options.max_depth,
                 float("-inf"),
@@ -832,113 +832,91 @@ class Game:
         # Return the best move
         return move
 
-    def heuristic_zero(self) -> int:
-        # Calculate the weighted sum of Player 1's units
-        score_p1 = (
-            3 * self.count_units(UnitType.Virus, Player.Attacker)
-            + 3 * self.count_units(UnitType.Tech, Player.Attacker)
-            + 3 * self.count_units(UnitType.Firewall, Player.Attacker)
-            + 3 * self.count_units(UnitType.Program, Player.Attacker)
-            + 9999 * self.count_units(UnitType.AI, Player.Attacker)
+    def heuristic_zero(self, player: Player) -> int:
+        """e1: Evaluate the score of a player by the number of units"""
+        score = (
+            3 * self.count_units(UnitType.Virus, player)
+            + 3 * self.count_units(UnitType.Tech, player)
+            + 3 * self.count_units(UnitType.Firewall, player)
+            + 3 * self.count_units(UnitType.Program, player)
+            + 9999 * self.count_units(UnitType.AI, player)
         )
-        # Calculate the weighted sum of Player 2's units
-        score_p2 = (
-            3 * self.count_units(UnitType.Virus, Player.Defender)
-            + 3 * self.count_units(UnitType.Tech, Player.Defender)
-            + 3 * self.count_units(UnitType.Firewall, Player.Defender)
-            + 3 * self.count_units(UnitType.Program, Player.Defender)
-            + 9999 * self.count_units(UnitType.AI, Player.Defender)
-        )
-        return score_p1 - score_p2
+        return score
 
-    def heuristic_one(self) -> int:
-        score_p1 = 0
-        score_p2 = 0
+    def heuristic_one(self, player: Player) -> int:
+        """e1: Evaluate the score of a player by the total health"""
+        score = 0
         ai_multiplier = 900
         virus_multiplier = tech_multiplier = 60
         program_multiplier = firewall_multiplier = 30
-        for _, unit in self.player_units(Player.Attacker):
+        for _, unit in self.player_units(player):
             if unit.type == UnitType.AI:
-                score_p1 += ai_multiplier * unit.health
+                score += ai_multiplier * unit.health
             elif unit.type == UnitType.Virus:
-                score_p1 += virus_multiplier * unit.health
+                score += virus_multiplier * unit.health
             elif unit.type == UnitType.Tech:
-                score_p1 += tech_multiplier * unit.health
+                score += tech_multiplier * unit.health
             elif unit.type == UnitType.Firewall:
-                score_p1 += firewall_multiplier * unit.health
+                score += firewall_multiplier * unit.health
             elif unit.type == UnitType.Program:
-                score_p1 += program_multiplier * unit.health
+                score += program_multiplier * unit.health
+        return score
 
-        for _, unit in self.player_units(Player.Defender):
-            if unit.type == UnitType.AI:
-                score_p2 += ai_multiplier * unit.health
-            elif unit.type == UnitType.Virus:
-                score_p2 += virus_multiplier * unit.health
-            elif unit.type == UnitType.Tech:
-                score_p2 += tech_multiplier * unit.health
-            elif unit.type == UnitType.Firewall:
-                score_p2 += firewall_multiplier * unit.health
-            elif unit.type == UnitType.Program:
-                score_p2 += program_multiplier * unit.health
-        return score_p1 - score_p2
-
-    def heuristic_two(self) -> int:
-        score_p1 = 0
-        score_p2 = 0
-        ai_multiplier = 900
+    def heuristic_two(self, player: Player) -> int:
+        """e2: Evaluate the score of a player by the positioning of the unit plus the health of the unit"""
+        score = 0
+        ai_multiplier = 1000
         virus_multiplier = tech_multiplier = 5
         program_multiplier = firewall_multiplier = 5
         attack_points = healing_points = 20
-        blocking_points = 20
-        # Calculate the attacker score
-        for src_coord, unit in self.player_units(Player.Attacker):
+        blocking_points = 10
+        # Calculate the score for player
+        for src_coord, unit in self.player_units(player):
             if unit.type == UnitType.AI:
-                score_p1 += ai_multiplier * unit.health
+                score += ai_multiplier * unit.health
                 # Provide points if the AI is adjacent to ally that requires healing
                 for dst_coord in src_coord.iter_adjacent():
                     dst_unit = self.get(dst_coord)
                     if dst_unit is None:
                         continue
                     # Give points for healing
-                    if (
-                        dst_unit.player == unit.player
-                        and dst_unit.type == UnitType.Virus
-                        and dst_unit == UnitType.Tech
+                    if dst_unit.player == unit.player and (
+                        dst_unit.type == UnitType.Virus or dst_unit == UnitType.Tech
                     ):
                         if dst_unit.health < 9:
-                            score_p1 += round(healing_points * 0.25)
+                            score += round(healing_points * 0.25)
                             break
                     # Provide points for attacking
                     if (
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Firewall
                     ):
-                        score_p1 += round(attack_points * 0.25)
+                        score += round(attack_points * 0.25)
                         break
                     elif dst_unit.player != unit.player:
-                        score_p1 += attack_points
+                        score += attack_points
                         break
             elif unit.type == UnitType.Virus:
-                score_p1 += virus_multiplier * unit.health
+                score += virus_multiplier * unit.health
                 # Provide points if the virus is engaging in combat
                 for dst_coord in src_coord.iter_adjacent():
                     dst_unit = self.get(dst_coord)
                     if dst_unit is None:
                         continue
                     if dst_unit.player != unit.player and dst_unit.type == UnitType.AI:
-                        score_p1 += attack_points * ai_multiplier
+                        score += attack_points * ai_multiplier
                         break
                     elif dst_unit.player != unit.player and (
                         dst_unit.type == UnitType.Tech
                         or dst_unit.type == UnitType.Program
                     ):
-                        score_p1 += attack_points * 3
+                        score += attack_points * 2
                         break
                     elif dst_unit.player != unit.player:
-                        score_p1 += round(attack_points * 0.25)
+                        score += round(attack_points * 0.25)
                         break
             elif unit.type == UnitType.Tech:
-                score_p1 += tech_multiplier * unit.health
+                score += tech_multiplier * unit.health
                 # Provide points if the tech is adjacent to ally that requires healing
                 for dst_coord in src_coord.iter_adjacent():
                     dst_unit = self.get(dst_coord)
@@ -950,119 +928,32 @@ class Game:
                         and dst_unit != UnitType.Tech
                     ):
                         if dst_unit.health < 9:
-                            score_p1 += healing_points
+                            score += healing_points
                             break
                     elif (
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Virus
                     ):
-                        score_p1 += attack_points * 3
+                        score += attack_points * 2
+                        break
             elif unit.type == UnitType.Firewall:
-                score_p1 += firewall_multiplier * unit.health
+                score += firewall_multiplier * unit.health
                 # Provide points if the firewall is engaged in combat
                 for dst_coord in src_coord.iter_adjacent():
                     dst_unit = self.get(dst_coord)
                     if dst_unit is None:
                         continue
-                    if dst_unit.player != unit.player:
-                        score_p1 += blocking_points
-                        break
-            elif unit.type == UnitType.Program:
-                score_p1 += program_multiplier * unit.health
-                # Provide points if the program is engaged in combat
-                for dst_coord in src_coord.iter_adjacent():
-                    dst_unit = self.get(dst_coord)
-                    if dst_unit is None:
-                        continue
-                    if (
-                        dst_unit.player != unit.player
-                        and dst_unit.type == UnitType.Firewall
+                    if dst_unit.player != unit.player and (
+                        dst_unit.type == UnitType.AI
+                        or dst_unit.type == UnitType.Program
                     ):
-                        score_p1 += round(attack_points * 0.25)
-                        break
-                    elif dst_unit.player != unit.player:
-                        score_p1 += attack_points
+                        score += blocking_points
+                    if dst_unit.player != unit.player:
+                        score += round(attack_points * 0.25)
                         break
 
-        # Calculate the defender score
-        for src_coord, unit in self.player_units(Player.Defender):
-            if unit.type == UnitType.AI:
-                score_p2 += ai_multiplier * unit.health
-                # Provide points if the AI is adjacent to ally that requires healing
-                for dst_coord in src_coord.iter_adjacent():
-                    dst_unit = self.get(dst_coord)
-                    if dst_unit is None:
-                        continue
-                    # Give points for healing
-                    if (
-                        dst_unit.player == unit.player
-                        and dst_unit.type == UnitType.Virus
-                        and dst_unit == UnitType.Tech
-                    ):
-                        if dst_unit.health < 9:
-                            score_p2 += round(healing_points * 0.25)
-                            break
-                    # Provide points for attacking
-                    if (
-                        dst_unit.player != unit.player
-                        and dst_unit.type == UnitType.Firewall
-                    ):
-                        score_p2 += round(attack_points * 0.25)
-                        break
-                    elif dst_unit.player != unit.player:
-                        score_p2 += attack_points
-                        break
-            elif unit.type == UnitType.Virus:
-                score_p2 += virus_multiplier * unit.health
-                # Provide points if the virus is engaging in combat
-                for dst_coord in src_coord.iter_adjacent():
-                    dst_unit = self.get(dst_coord)
-                    if dst_unit is None:
-                        continue
-                    if dst_unit.player != unit.player and dst_unit.type == UnitType.AI:
-                        score_p2 += attack_points * ai_multiplier
-                        break
-                    elif dst_unit.player != unit.player and (
-                        dst_unit.type == UnitType.Tech
-                        or dst_unit.type == UnitType.Program
-                    ):
-                        score_p2 += attack_points * 3
-                        break
-                    elif dst_unit.player != unit.player:
-                        score_p2 += round(attack_points * 0.25)
-                        break
-            elif unit.type == UnitType.Tech:
-                score_p2 += tech_multiplier * unit.health
-                # Provide points if the tech is adjacent to ally that requires healing
-                for dst_coord in src_coord.iter_adjacent():
-                    dst_unit = self.get(dst_coord)
-                    if dst_unit is None:
-                        continue
-                    if (
-                        dst_unit.player == unit.player
-                        and dst_unit.type != UnitType.Virus
-                        and dst_unit != UnitType.Tech
-                    ):
-                        if dst_unit.health < 9:
-                            score_p2 += healing_points
-                            break
-                    elif (
-                        dst_unit.player != unit.player
-                        and dst_unit.type == UnitType.Virus
-                    ):
-                        score_p2 += attack_points * 3
-            elif unit.type == UnitType.Firewall:
-                score_p2 += firewall_multiplier * unit.health
-                # Provide points if the firewall is engaged in combat
-                for dst_coord in src_coord.iter_adjacent():
-                    dst_unit = self.get(dst_coord)
-                    if dst_unit is None:
-                        continue
-                    if dst_unit.player != unit.player:
-                        score_p2 += blocking_points
-                        break
             elif unit.type == UnitType.Program:
-                score_p2 += program_multiplier * unit.health
+                score += program_multiplier * unit.health
                 # Provide points if the program is engaged in combat
                 for dst_coord in src_coord.iter_adjacent():
                     dst_unit = self.get(dst_coord)
@@ -1072,24 +963,30 @@ class Game:
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Firewall
                     ):
-                        score_p2 += round(attack_points * 0.25)
+                        score += round(attack_points * 0.25)
                         break
                     elif dst_unit.player != unit.player:
-                        score_p2 += attack_points
+                        score += attack_points
                         break
-        return score_p1 - score_p2
+        return score
 
     def evaluate_board(self) -> int:
-        # Perform heuristic depending on what the user chose
+        """Perform heuristic depending on what the user chose"""
         match self.options.heuristic:
-            case 0:  # e0
-                result = self.heuristic_zero()
+            case 0:  # perform e0
+                score_attacker = self.heuristic_zero(Player.Attacker)
+                score_defender = self.heuristic_zero(Player.Defender)
+                result = score_attacker - score_defender
                 return result
-            case 1:  # e1
-                result = self.heuristic_one()
+            case 1:  # perform e1
+                score_attacker = self.heuristic_one(Player.Attacker)
+                score_defender = self.heuristic_one(Player.Defender)
+                result = score_attacker - score_defender
                 return result
             case 2:  # e2
-                result = self.heuristic_two()
+                score_attacker = self.heuristic_two(Player.Attacker)
+                score_defender = self.heuristic_two(Player.Defender)
+                result = score_attacker - score_defender
                 return result
             case _:  # other
                 return 0
@@ -1138,13 +1035,20 @@ class Game:
         # Maximizing player's turn
         if is_maximizing:
             max_eval = float("-inf")
+            children = []
+            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if not success:
-                    continue
+                if success:
+                    # Appending the move and the simulated game as a child into the children list
+                    child = (move, simulated_game)
+                    children.append(child)
+            # Evaluate the children
+            for child in children:
+                move, simulated_game = child
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -1160,20 +1064,27 @@ class Game:
                 # Update alpha and prune the search tree if necessary
                 if alpha_beta:
                     alpha = max(alpha, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return max_eval, best_move
 
         # Minimizing player's turn
         else:
             min_eval = float("inf")
+            children = []
+            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if not success:
-                    continue
+                if success:
+                    # Appending the move and the simulated game as a child into the children list
+                    child = (move, simulated_game)
+                    children.append(child)
+            # Evaluate the children
+            for child in children:
+                move, simulated_game = child
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -1189,7 +1100,7 @@ class Game:
                 # Update beta and prune the search tree if necessary
                 if alpha_beta:
                     beta = min(beta, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return min_eval, best_move
 
