@@ -948,9 +948,6 @@ class Game:
                         or dst_unit.type == UnitType.Program
                     ):
                         score += blocking_points
-                    if dst_unit.player != unit.player:
-                        score += round(attack_points * 0.25)
-                        break
 
             elif unit.type == UnitType.Program:
                 score += program_multiplier * unit.health
@@ -1035,20 +1032,13 @@ class Game:
         # Maximizing player's turn
         if is_maximizing:
             max_eval = float("-inf")
-            children = []
-            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if success:
-                    # Appending the move and the simulated game as a child into the children list
-                    child = (move, simulated_game)
-                    children.append(child)
-            # Evaluate the children
-            for child in children:
-                move, simulated_game = child
+                if not success:
+                    continue
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -1071,20 +1061,13 @@ class Game:
         # Minimizing player's turn
         else:
             min_eval = float("inf")
-            children = []
-            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if success:
-                    # Appending the move and the simulated game as a child into the children list
-                    child = (move, simulated_game)
-                    children.append(child)
-            # Evaluate the children
-            for child in children:
-                move, simulated_game = child
+                if not success:
+                    continue
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
