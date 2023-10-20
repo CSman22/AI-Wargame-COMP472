@@ -789,7 +789,7 @@ class Game:
         elapsed_seconds = 0
         remaining_seconds = self.options.max_time - elapsed_seconds
         # Give enough time for the ai to stop searching and return back the best outcome it found
-        new_remaining_seconds = remaining_seconds * 0.90
+        new_remaining_seconds = remaining_seconds * 0.93
 
         # Check if depth should be labelled for max(attacker) or min(defender)
         if self.next_player == Player.Attacker:
@@ -866,10 +866,10 @@ class Game:
         """e2: Evaluate the score of a player by the positioning of the unit plus the health of the unit"""
         score = 0
         ai_multiplier = 1000
-        virus_multiplier = tech_multiplier = 5
+        virus_multiplier = tech_multiplier = 6
         program_multiplier = firewall_multiplier = 5
-        attack_points = healing_points = 20
-        blocking_points = 10
+        attack_points = healing_points = 1
+        blocking_points = 1
         # Calculate the score for player
         for src_coord, unit in self.player_units(player):
             if unit.type == UnitType.AI:
@@ -884,18 +884,15 @@ class Game:
                         dst_unit.type == UnitType.Virus or dst_unit == UnitType.Tech
                     ):
                         if dst_unit.health < 9:
-                            score += round(healing_points * 0.25)
-                            break
+                            score += healing_points
                     # Provide points for attacking
                     if (
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Firewall
                     ):
-                        score += round(attack_points * 0.25)
-                        break
-                    elif dst_unit.player != unit.player:
                         score += attack_points
-                        break
+                    elif dst_unit.player != unit.player:
+                        score += attack_points * 3
             elif unit.type == UnitType.Virus:
                 score += virus_multiplier * unit.health
                 # Provide points if the virus is engaging in combat
@@ -910,11 +907,9 @@ class Game:
                         dst_unit.type == UnitType.Tech
                         or dst_unit.type == UnitType.Program
                     ):
-                        score += attack_points * 2
-                        break
-                    elif dst_unit.player != unit.player:
-                        score += round(attack_points * 0.25)
-                        break
+                        score += attack_points * 6
+                    elif dst_unit.player != unit.player:  # Otherwise firewall
+                        score += attack_points
             elif unit.type == UnitType.Tech:
                 score += tech_multiplier * unit.health
                 # Provide points if the tech is adjacent to ally that requires healing
@@ -928,14 +923,14 @@ class Game:
                         and dst_unit != UnitType.Tech
                     ):
                         if dst_unit.health < 9:
-                            score += healing_points
-                            break
+                            score += healing_points * 3
                     elif (
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Virus
                     ):
-                        score += attack_points * 2
-                        break
+                        score += attack_points * 6
+                    elif dst_unit.player != unit.player:  # Other units
+                        score += attack_points
             elif unit.type == UnitType.Firewall:
                 score += firewall_multiplier * unit.health
                 # Provide points if the firewall is engaged in combat
@@ -943,12 +938,14 @@ class Game:
                     dst_unit = self.get(dst_coord)
                     if dst_unit is None:
                         continue
-                    if dst_unit.player != unit.player and (
-                        dst_unit.type == UnitType.AI
-                        or dst_unit.type == UnitType.Program
-                    ):
-                        score += blocking_points
-
+                    # if dst_unit.player != unit.player and (
+                    #     dst_unit.type == UnitType.AI
+                    #     or dst_unit.type == UnitType.Program
+                    #     or dst_unit.type == UnitType.Firewall
+                    # ):
+                    #     score += blocking_points
+                    if dst_unit.player != unit.player:
+                        score += attack_points
             elif unit.type == UnitType.Program:
                 score += program_multiplier * unit.health
                 # Provide points if the program is engaged in combat
@@ -960,11 +957,9 @@ class Game:
                         dst_unit.player != unit.player
                         and dst_unit.type == UnitType.Firewall
                     ):
-                        score += round(attack_points * 0.25)
-                        break
-                    elif dst_unit.player != unit.player:
                         score += attack_points
-                        break
+                    elif dst_unit.player != unit.player:
+                        score += attack_points * 3
         return score
 
     def evaluate_board(self) -> int:
