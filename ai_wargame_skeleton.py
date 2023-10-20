@@ -287,6 +287,17 @@ class Game:
     _attacker_ai_self_destructed: bool = False
     _defender_ai_self_destructed: bool = False
 
+    # Add attributes for statistics tracking
+    total_nodes: int = 0
+    eval_by_depth = {}
+    non_leaf_nodes: int = 0
+
+    # reset statistics
+    def reset_statistics(self):
+        self.total_nodes = 0
+        self.eval_by_depth.clear()
+        self.non_leaf_nodes = 0
+
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
         dim = self.options.dim
@@ -624,37 +635,104 @@ class Game:
         # Get the suggested move for the computer
         mv = self.suggest_move()
 
-        # If a move is suggested
-        if mv is not None:
-            # If the game is done because of the ai passes the allowed time
-            if self.is_finished():
-                if self.next_player == Player.Attacker:
-                    print("Defender wins due to AI time penalty!")
-                else:
-                    print("Attacker wins due to AI time penalty!")
-                return None
-            else:
-                # Try to perform the move
-                (success, result) = self.perform_move(mv)
+        # If no move is suggested or the game is finished, handle the end of the game
+        if mv is None or self.is_finished():
+            self.handle_game_end()
+            return None
 
-                # If the move is successful
-                if success:
-                    print(f"Computer {self.next_player.name}: ", end="")
-                    print(result)
-                    # Proceed to the next turn
-                    self.next_turn()
-                else:
-                    # Handle the case where the AI generates an illegal action
-                    print("AI generated an illegal action!")
-                    # Determine the winner based on the current player (the computer)
-                    if self.next_player == Player.Attacker:
-                        print("Defender wins due to AI illegal action!")
-                        self.is_finished()
-                    else:
-                        print("Attacker wins due to AI illegal action!")
-                        self.is_finished()
-                    return None
+        # Try to perform the move
+        (success, result) = self.perform_move(mv)
+
+        # If the move is successful, print and save statistics, then proceed to the next turn
+        if success:
+            print(f"Computer {self.next_player.name}: {result}")
+            self.print_cumulative_info()
+            self.write_statistics_to_file(result)
+            self.next_turn()
+        else:
+            # Handle the case where the AI generates an illegal action
+            self.handle_illegal_action()
+
         return mv
+
+    def handle_game_end(self):
+        """Handle the end of the game due to AI errors."""
+        if self.next_player == Player.Attacker:
+            print("Defender wins due to AI time penalty!")
+        else:
+            print("Attacker wins due to AI time penalty!")
+
+    def handle_illegal_action(self):
+        """Handle the case where the AI generates an illegal action."""
+        print("AI generated an illegal action!")
+        if self.next_player == Player.Attacker:
+            print("Defender wins due to AI illegal action!")
+        else:
+            print("Attacker wins due to AI illegal action!")
+        self.is_finished()
+
+    def write_statistics_to_file(self, result):
+        """Write the game statistics to a file."""
+        with open(filename, "a") as file:
+            stats = [
+                f"\nComputer {self.next_player.name}: ",
+                f"\n{result}\n\n",
+                f"\t{self.board_to_string()}",
+                f"\nCumulative evals: {self.format_number(self.total_nodes)}",
+                "\nCumulative evals by depth: "
+                + " ".join(
+                    [
+                        f"{depth}={self.format_number(count)}"
+                        for depth, count in self.eval_by_depth.items()
+                    ]
+                ),
+                "\nCumulative % evals by depth: "
+                + " ".join(
+                    [
+                        f"{depth}={count/sum(self.eval_by_depth.values())*100:.1f}%"
+                        for depth, count in self.eval_by_depth.items()
+                    ]
+                ),
+                f"\nAverage branching factor: {self.get_average_branching_factor():.1f}",
+            ]
+            file.write("\n".join(stats))
+
+    def print_cumulative_info(self):
+        print(f"Cumulative evals: {self.total_nodes}")
+
+        # Evaluations by depth
+        eval_by_depth_str = " ".join(
+            [
+                f"{depth}={self.format_number(count)}"
+                for depth, count in self.eval_by_depth.items()
+            ]
+        )
+        print(f"Cumulative evals by depth: {eval_by_depth_str}")
+
+        # Percentage evaluations by depth
+        percentages_by_depth_str = " ".join(
+            [
+                f"{depth}={count/sum(self.eval_by_depth.values())*100:.1f}%"
+                for depth, count in self.eval_by_depth.items()
+            ]
+        )
+        print(f"Cumulative % evals by depth: {percentages_by_depth_str}")
+
+        # Average branching factor (assuming it's calculated and stored in self.avg_branching_factor)
+        print(f"Average branching factor: {self.get_average_branching_factor():.1f}")
+
+    def format_number(self, num):
+        if num < 1_000:
+            return str(num)
+        elif num < 1_000_000:
+            return f"{num/1_000:.1f}k"
+        else:
+            return f"{num/1_000_000:.1f}M"
+
+    def get_average_branching_factor(self):
+        if self.non_leaf_nodes == 0:
+            return 0
+        return (self.total_nodes - 1) / self.non_leaf_nodes
 
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner."""
@@ -766,15 +844,6 @@ class Game:
                     move.dst = src
                     yield move.clone()
 
-    # def random_move(self) -> Tuple[int, CoordPair | None, float]:
-    #     """Returns a random move."""
-    #     move_candidates = list(self.move_candidates())
-    #     random.shuffle(move_candidates)
-    #     if len(move_candidates) > 0:
-    #         return 0, move_candidates[0], 1
-    #     else:
-    #         return 0, None, 0
-
     def suggest_move(self) -> CoordPair | None:
         """
         Suggest the best move for the current player using the Minimax algorithm with or without Alpha-Beta pruning.
@@ -783,41 +852,34 @@ class Game:
         - The best move as a CoordPair or None if no valid move is found.
         """
 
-        # Record the start time to calculate the time taken by the algorithm
+        # Helper function to calculate the adjusted remaining time
+        def calculate_remaining_time(elapsed: float, max_time: float) -> float:
+            remaining = max_time - elapsed
+            # Adjust the remaining time to ensure the AI stops searching in time
+            return remaining * 0.90
+
         start_time = datetime.now()
-        # Calculate the remaining time
-        elapsed_seconds = 0
-        remaining_seconds = self.options.max_time - elapsed_seconds
-        # Give enough time for the ai to stop searching and return back the best outcome it found
-        new_remaining_seconds = remaining_seconds * 0.90
+        # set boolean value for the current player is maximizing or minimizing
+        is_maximizing = self.next_player == Player.Attacker
 
-        # Check if depth should be labelled for max(attacker) or min(defender)
-        if self.next_player == Player.Attacker:
-            # Use the Minimax algorithm to get the best move and its heuristic score for max
-            (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth,
-                float("-inf"),
-                float("inf"),
-                True,
-                self.options.alpha_beta,
-                new_remaining_seconds,
-            )
-        else:
-            # Use the Minimax algorithm to get the best move and its heuristic score for min
-            (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth,
-                float("-inf"),
-                float("inf"),
-                False,
-                self.options.alpha_beta,
-                new_remaining_seconds,
-            )
+        # Calculate the remaining time for the AI to make a decision
+        adjusted_remaining_time = calculate_remaining_time(0, self.options.max_time)
 
-        # Calculate the time taken by the algorithm
+        # Use the Minimax algorithm to get the best move and its heuristic score
+        score, move = self.minimax_alpha_beta(
+            self.options.max_depth,
+            float("-inf"),
+            float("inf"),
+            is_maximizing,
+            self.options.alpha_beta,
+            adjusted_remaining_time,
+        )
+
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
 
+        # Check if the AI exceeded the maximum allowed time and disable the AI for the current player
         if elapsed_seconds > self.options.max_time:
-            if self.next_player == Player.Attacker:
+            if is_maximizing:
                 self._attacker_has_ai = False
             else:
                 self._defender_has_ai = False
@@ -827,9 +889,8 @@ class Game:
 
         # Print the heuristic score of the best move and the time taken by the algorithm
         print(f"Heuristic score: {score}")
-        print(f"Elapsed time: {elapsed_seconds:0.2f}s")
+        print(f"Time for this action: {elapsed_seconds:.2f} sec")
 
-        # Return the best move
         return move
 
     # def heuristic_zero(self, player: Player) -> int:
@@ -861,7 +922,7 @@ class Game:
     #         elif unit.type == UnitType.Program:
     #             score += program_multiplier * unit.health
     #     return score
-    
+
     # def heuristic_two(self, player: Player) -> int:
     #     """e2: Evaluate the score of a player by the positioning of the unit plus the health of the unit"""
     #     score = 0
@@ -1047,9 +1108,7 @@ class Game:
             score += UNIT_MULTIPLIERS[unit.type] * unit.health
 
         return score
-    
-    
-    
+
     def heuristic_two(self, player: Player) -> int:
         """
         Evaluate the total score for a player based on the positioning and health of all their units.
@@ -1275,7 +1334,6 @@ class Game:
         # Return the difference in scores
         return score_attacker - score_defender
 
-
     def count_units(self, unit_type: UnitType, player: Player) -> int:
         """Count the number of units of a specific type and player on the board."""
         count = 0
@@ -1311,26 +1369,49 @@ class Game:
         - The heuristic value of the board after the best move.
         - The best move as a CoordPair.
         """
+        self.total_nodes += 1
         start_time = datetime.now()
         best_move = None
+
+        # Update evals_by_depth
+        if depth not in self.eval_by_depth:
+            self.eval_by_depth[depth] = 0
+        self.eval_by_depth[depth] += 1
+
         # Base case: if the search has reached maximum depth or the game is finished
         if depth == 0 or self.is_finished() or remaining_time <= 0:
             return self.evaluate_board(), None
+        """
+            1.Generate all the possible children/combination from current node
+            2.Simulate the game after making the move
+            3.Try to perform the move and skip if it's not valid
+            4.Appending the move and the simulated game as a child into the children list
+        """
+        children = [
+            self.clone_and_move(move)
+            for move in self.move_candidates()
+            if self.clone_and_move(move)
+        ]
+
+        # Update non_leaf_nodes for branching factor calculation
+        if children:
+            self.non_leaf_nodes += 1
 
         # Maximizing player's turn
         if is_maximizing:
             max_eval = float("-inf")
-            children = []
-            # Generate all the possible children/combination from the node
-            for move in self.move_candidates():
-                # Simulate the game after making the move
-                simulated_game = self.clone()
-                # Try to perform the move and skip if it's not valid
-                success, _ = simulated_game.perform_move(move)
-                if success:
-                    # Appending the move and the simulated game as a child into the children list
-                    child = (move, simulated_game)
-                    children.append(child)
+            # children = []
+            # # Generate all the possible children/combination from the node
+            # for move in self.move_candidates():
+            #     # Simulate the game after making the move
+            #     simulated_game = self.clone()
+            #     # Try to perform the move and skip if it's not valid
+            #     success, _ = simulated_game.perform_move(move)
+            #     if success:
+            #         # Appending the move and the simulated game as a child into the children list
+            #         child = (move, simulated_game)
+            #         children.append(child)
+
             # Evaluate the children
             for child in children:
                 move, simulated_game = child
@@ -1356,17 +1437,18 @@ class Game:
         # Minimizing player's turn
         else:
             min_eval = float("inf")
-            children = []
-            # Generate all the possible children/combination from the node
-            for move in self.move_candidates():
-                # Simulate the game after making the move
-                simulated_game = self.clone()
-                # Try to perform the move and skip if it's not valid
-                success, _ = simulated_game.perform_move(move)
-                if success:
-                    # Appending the move and the simulated game as a child into the children list
-                    child = (move, simulated_game)
-                    children.append(child)
+            # children = []
+            # # Generate all the possible children/combination from the node
+            # for move in self.move_candidates():
+            #     # Simulate the game after making the move
+            #     simulated_game = self.clone()
+            #     # Try to perform the move and skip if it's not valid
+            #     success, _ = simulated_game.perform_move(move)
+            #     if success:
+            #         # Appending the move and the simulated game as a child into the children list
+            #         child = (move, simulated_game)
+            #         children.append(child)
+
             # Evaluate the children
             for child in children:
                 move, simulated_game = child
@@ -1388,6 +1470,13 @@ class Game:
                     if beta <= alpha:
                         break
             return min_eval, best_move
+
+    def clone_and_move(self, move):
+        simulated_game = self.clone()
+        success, _ = simulated_game.perform_move(move)
+        if success:
+            return move, simulated_game
+        return None
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
@@ -1581,12 +1670,12 @@ class Game:
 ##############################################################################################################
 def choose_game_mode_interactive():
     print("------------------------------------")
-    print("Welcome to the AI War Game !")
+    print("Welcome to the AI War Game!")
     print("Choose a game mode: ")
-    print("1. Attacker VS Defender ")
-    print("2. Attacker VS Computer ")
-    print("3. Computer VS Defender ")
-    print("4. Computer VS Computer ")
+    print("1. Attacker VS Defender")
+    print("2. Attacker VS Computer")
+    print("3. Computer VS Defender")
+    print("4. Computer VS Computer")
     choice = int(input("Enter your choice (1-4): "))
     while choice not in [1, 2, 3, 4]:
         print("Invalid choice. Please choose between 1 and 4.\n")
@@ -1741,6 +1830,9 @@ def main():
     # create a new game
     game = Game(options=options)
 
+    # reset statistics for every game
+    game.reset_statistics()
+
     # creating the output file
     b = game.options.alpha_beta
     t = game.options.max_time
@@ -1755,7 +1847,7 @@ def main():
     game_parameters += f"b) Max number of turns: {m}\n"
     game_parameters += f"c) Alpha-beta: {b}\n"
     game_parameters += f"d) Play Mode: Player 1 = H & Player 2 = H\n"
-    game_parameters += f"e) Name of heuristic: {e}\n"
+    game_parameters += f"e) Name of heuristic: h{e}\n"
     init_conf = f"\n"
     init_conf += f"2. The initial configuration of the board:\n"
     init_conf += f"\t{game.board_to_string()} \n"
