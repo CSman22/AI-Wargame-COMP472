@@ -254,6 +254,7 @@ class Options:
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
+    heuristic: int | None = 0
 
 
 ##############################################################################################################
@@ -418,13 +419,6 @@ class Game:
 
         # If T = S, the action is self-destruction
         if coords.src == coords.dst:
-            # Prevent AI from self-destructing
-            if self.options.game_type in [
-                GameType.AttackerVsComp,
-                GameType.CompVsDefender,
-                GameType.CompVsComp,
-            ]:
-                return (False, "AI cannot self-destruct")
             return self.self_destruct(coords.src)
 
         # If the target T is an empty cell, the action is movement
@@ -794,11 +788,12 @@ class Game:
         # Calculate the remaining time
         elapsed_seconds = 0
         remaining_seconds = self.options.max_time - elapsed_seconds
-        new_remaining_seconds = remaining_seconds * 0.9
+        # Give enough time for the ai to stop searching and return back the best outcome it found
+        new_remaining_seconds = remaining_seconds * 0.90
 
-        # Check if maximizing for attacker
+        # Check if depth should be labelled for max(attacker) or min(defender)
         if self.next_player == Player.Attacker:
-            # Use the Minimax algorithm with Alpha-Beta pruning to get the best move and its heuristic score
+            # Use the Minimax algorithm to get the best move and its heuristic score for max
             (score, move) = self.minimax_alpha_beta(
                 self.options.max_depth,
                 float("-inf"),
@@ -808,8 +803,7 @@ class Game:
                 new_remaining_seconds,
             )
         else:
-            # Use just the Minimax algorithm to get the best move and its heuristic score
-            # Note: You'll need to implement the minimax method without alpha-beta pruning
+            # Use the Minimax algorithm to get the best move and its heuristic score for min
             (score, move) = self.minimax_alpha_beta(
                 self.options.max_depth,
                 float("-inf"),
@@ -838,24 +832,164 @@ class Game:
         # Return the best move
         return move
 
-    def evaluate_board(self):
-        # Calculate the weighted sum of Player 1's units
-        score_p1 = (
-            3 * self.count_units(UnitType.Virus, Player.Attacker)
-            + 3 * self.count_units(UnitType.Tech, Player.Attacker)
-            + 3 * self.count_units(UnitType.Firewall, Player.Attacker)
-            + 3 * self.count_units(UnitType.Program, Player.Attacker)
-            + 9999 * self.count_units(UnitType.AI, Player.Attacker)
+    def heuristic_zero(self, player: Player) -> int:
+        """e1: Evaluate the score of a player by the number of units"""
+        score = (
+            3 * self.count_units(UnitType.Virus, player)
+            + 3 * self.count_units(UnitType.Tech, player)
+            + 3 * self.count_units(UnitType.Firewall, player)
+            + 3 * self.count_units(UnitType.Program, player)
+            + 9999 * self.count_units(UnitType.AI, player)
         )
-        # Calculate the weighted sum of Player 2's units
-        score_p2 = (
-            3 * self.count_units(UnitType.Virus, Player.Defender)
-            + 3 * self.count_units(UnitType.Tech, Player.Defender)
-            + 3 * self.count_units(UnitType.Firewall, Player.Defender)
-            + 3 * self.count_units(UnitType.Program, Player.Defender)
-            + 9999 * self.count_units(UnitType.AI, Player.Defender)
-        )
-        return score_p1 - score_p2
+        return score
+
+    def heuristic_one(self, player: Player) -> int:
+        """e1: Evaluate the score of a player by the total health"""
+        score = 0
+        ai_multiplier = 900
+        virus_multiplier = tech_multiplier = 60
+        program_multiplier = firewall_multiplier = 30
+        for _, unit in self.player_units(player):
+            if unit.type == UnitType.AI:
+                score += ai_multiplier * unit.health
+            elif unit.type == UnitType.Virus:
+                score += virus_multiplier * unit.health
+            elif unit.type == UnitType.Tech:
+                score += tech_multiplier * unit.health
+            elif unit.type == UnitType.Firewall:
+                score += firewall_multiplier * unit.health
+            elif unit.type == UnitType.Program:
+                score += program_multiplier * unit.health
+        return score
+
+    def heuristic_two(self, player: Player) -> int:
+        """e2: Evaluate the score of a player by the positioning of the unit plus the health of the unit"""
+        score = 0
+        ai_multiplier = 1000
+        virus_multiplier = tech_multiplier = 5
+        program_multiplier = firewall_multiplier = 5
+        attack_points = healing_points = 20
+        blocking_points = 10
+        # Calculate the score for player
+        for src_coord, unit in self.player_units(player):
+            if unit.type == UnitType.AI:
+                score += ai_multiplier * unit.health
+                # Provide points if the AI is adjacent to ally that requires healing
+                for dst_coord in src_coord.iter_adjacent():
+                    dst_unit = self.get(dst_coord)
+                    if dst_unit is None:
+                        continue
+                    # Give points for healing
+                    if dst_unit.player == unit.player and (
+                        dst_unit.type == UnitType.Virus or dst_unit == UnitType.Tech
+                    ):
+                        if dst_unit.health < 9:
+                            score += round(healing_points * 0.25)
+                            break
+                    # Provide points for attacking
+                    if (
+                        dst_unit.player != unit.player
+                        and dst_unit.type == UnitType.Firewall
+                    ):
+                        score += round(attack_points * 0.25)
+                        break
+                    elif dst_unit.player != unit.player:
+                        score += attack_points
+                        break
+            elif unit.type == UnitType.Virus:
+                score += virus_multiplier * unit.health
+                # Provide points if the virus is engaging in combat
+                for dst_coord in src_coord.iter_adjacent():
+                    dst_unit = self.get(dst_coord)
+                    if dst_unit is None:
+                        continue
+                    if dst_unit.player != unit.player and dst_unit.type == UnitType.AI:
+                        score += attack_points * ai_multiplier
+                        break
+                    elif dst_unit.player != unit.player and (
+                        dst_unit.type == UnitType.Tech
+                        or dst_unit.type == UnitType.Program
+                    ):
+                        score += attack_points * 2
+                        break
+                    elif dst_unit.player != unit.player:
+                        score += round(attack_points * 0.25)
+                        break
+            elif unit.type == UnitType.Tech:
+                score += tech_multiplier * unit.health
+                # Provide points if the tech is adjacent to ally that requires healing
+                for dst_coord in src_coord.iter_adjacent():
+                    dst_unit = self.get(dst_coord)
+                    if dst_unit is None:
+                        continue
+                    if (
+                        dst_unit.player == unit.player
+                        and dst_unit.type != UnitType.Virus
+                        and dst_unit != UnitType.Tech
+                    ):
+                        if dst_unit.health < 9:
+                            score += healing_points
+                            break
+                    elif (
+                        dst_unit.player != unit.player
+                        and dst_unit.type == UnitType.Virus
+                    ):
+                        score += attack_points * 2
+                        break
+            elif unit.type == UnitType.Firewall:
+                score += firewall_multiplier * unit.health
+                # Provide points if the firewall is engaged in combat
+                for dst_coord in src_coord.iter_adjacent():
+                    dst_unit = self.get(dst_coord)
+                    if dst_unit is None:
+                        continue
+                    if dst_unit.player != unit.player and (
+                        dst_unit.type == UnitType.AI
+                        or dst_unit.type == UnitType.Program
+                    ):
+                        score += blocking_points
+                    if dst_unit.player != unit.player:
+                        score += round(attack_points * 0.25)
+                        break
+
+            elif unit.type == UnitType.Program:
+                score += program_multiplier * unit.health
+                # Provide points if the program is engaged in combat
+                for dst_coord in src_coord.iter_adjacent():
+                    dst_unit = self.get(dst_coord)
+                    if dst_unit is None:
+                        continue
+                    if (
+                        dst_unit.player != unit.player
+                        and dst_unit.type == UnitType.Firewall
+                    ):
+                        score += round(attack_points * 0.25)
+                        break
+                    elif dst_unit.player != unit.player:
+                        score += attack_points
+                        break
+        return score
+
+    def evaluate_board(self) -> int:
+        """Perform heuristic depending on what the user chose"""
+        match self.options.heuristic:
+            case 0:  # perform e0
+                score_attacker = self.heuristic_zero(Player.Attacker)
+                score_defender = self.heuristic_zero(Player.Defender)
+                result = score_attacker - score_defender
+                return result
+            case 1:  # perform e1
+                score_attacker = self.heuristic_one(Player.Attacker)
+                score_defender = self.heuristic_one(Player.Defender)
+                result = score_attacker - score_defender
+                return result
+            case 2:  # e2
+                score_attacker = self.heuristic_two(Player.Attacker)
+                score_defender = self.heuristic_two(Player.Defender)
+                result = score_attacker - score_defender
+                return result
+            case _:  # other
+                return 0
 
     def count_units(self, unit_type: UnitType, player: Player) -> int:
         """Count the number of units of a specific type and player on the board."""
@@ -901,13 +1035,20 @@ class Game:
         # Maximizing player's turn
         if is_maximizing:
             max_eval = float("-inf")
+            children = []
+            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if not success:
-                    continue
+                if success:
+                    # Appending the move and the simulated game as a child into the children list
+                    child = (move, simulated_game)
+                    children.append(child)
+            # Evaluate the children
+            for child in children:
+                move, simulated_game = child
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -923,20 +1064,27 @@ class Game:
                 # Update alpha and prune the search tree if necessary
                 if alpha_beta:
                     alpha = max(alpha, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return max_eval, best_move
 
         # Minimizing player's turn
         else:
             min_eval = float("inf")
+            children = []
+            # Generate all the possible children/combination from the node
             for move in self.move_candidates():
                 # Simulate the game after making the move
                 simulated_game = self.clone()
                 # Try to perform the move and skip if it's not valid
                 success, _ = simulated_game.perform_move(move)
-                if not success:
-                    continue
+                if success:
+                    # Appending the move and the simulated game as a child into the children list
+                    child = (move, simulated_game)
+                    children.append(child)
+            # Evaluate the children
+            for child in children:
+                move, simulated_game = child
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -952,7 +1100,7 @@ class Game:
                 # Update beta and prune the search tree if necessary
                 if alpha_beta:
                     beta = min(beta, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return min_eval, best_move
 
@@ -1150,10 +1298,10 @@ def choose_game_mode_interactive():
     print("------------------------------------")
     print("Welcome to the AI Wargame!")
     print("Choose a game mode:")
-    print("1. AttackerVsDefender")
-    print("2. AttackerVsComp")
-    print("3. CompVsDefender")
-    print("4. CompVsComp")
+    print("1. Attacker VS Defender")
+    print("2. Attacker VS Computer")
+    print("3. Computer VS Defender")
+    print("4. Computer VS Computer")
     choice = int(input("Enter your choice (1-4): "))
     while choice not in [1, 2, 3, 4]:
         print("Invalid choice. Please choose between 1 and 4.\n")
@@ -1185,10 +1333,10 @@ def choose_alpha_beta() -> bool:
 def choose_allowed_time() -> float:
     while True:
         user_input = input(
-            "Maximum allowed seconds for the computer to return a move (Default: 6): "
+            "Enter maximum allowed seconds for the computer to return a move (Default: 5): "
         )
         if user_input.strip() == "":
-            return 6
+            return 5
         try:
             user_input = float(user_input)
             if user_input > 0:
@@ -1201,7 +1349,7 @@ def choose_allowed_time() -> float:
 
 def choose_max_turns() -> int:
     while True:
-        user_input = input("Maximum number of turns (Default:100): ")
+        user_input = input("Enter maximum number of turns (Default:100): ")
         if user_input.strip() == "":
             return 100
         try:
@@ -1216,15 +1364,32 @@ def choose_max_turns() -> int:
 
 def choose_max_depth() -> int:
     while True:
-        user_input = input("Max depth (Default: 3): ")
+        user_input = input("Enter max depth (Default: 4): ")
         if user_input.strip() == "":
-            return 3
+            return 4
         try:
             user_input = int(user_input)
             if user_input > 0:
                 return user_input
             else:
                 print("Invalid input: Please choose a number above 0.\n")
+        except ValueError:
+            print("Invalid input: Please enter a valid number. \n")
+
+
+def choose_heuristic():
+    while True:
+        user_input = input("Enter heuristic e(0, 1 or 2)(Default: 0): ")
+        if user_input.strip() == "":
+            return 0
+        try:
+            user_input = int(user_input)
+            if user_input >= 0 and user_input <= 2:
+                return user_input
+            else:
+                print(
+                    "Invalid input: Please choose a number between 0 and 2 inclusive.\n"
+                )
         except ValueError:
             print("Invalid input: Please enter a valid number. \n")
 
@@ -1275,15 +1440,18 @@ def main():
     max_allowed_time = 0
     max_depth = 0
     max_turns = choose_max_turns()
+    heuristic = 0
     # check if computer is playing
     if chosen_game_type != GameType.AttackerVsDefender:
         max_allowed_time = choose_allowed_time()
         max_depth = choose_max_depth()
         include_alpha_beta = choose_alpha_beta()
+        heuristic = choose_heuristic()
     options.alpha_beta = include_alpha_beta
     options.max_time = max_allowed_time
     options.max_turns = max_turns
     options.max_depth = max_depth
+    options.heuristic = heuristic
 
     # create a new game
     game = Game(options=options)
