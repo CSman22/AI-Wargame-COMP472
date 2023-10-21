@@ -963,14 +963,14 @@ class Game:
 
         # Define scoring constants in a dictionary
         SCORE_CONSTANTS = {
-            'AI_MULTIPLIER': 1000,
-            'VIRUS_MULTIPLIER': 5,
-            'TECH_MULTIPLIER': 5,
-            'FIREWALL_MULTIPLIER': 5,
-            'PROGRAM_MULTIPLIER': 5,
-            'HEALING_POINTS': 20,
-            'ATTACK_POINTS': 20,
-            'BLOCKING_POINTS': 10,
+            "AI_MULTIPLIER": 1000,
+            "VIRUS_MULTIPLIER": 5,
+            "TECH_MULTIPLIER": 5,
+            "FIREWALL_MULTIPLIER": 5,
+            "PROGRAM_MULTIPLIER": 5,
+            "HEALING_POINTS": 20,
+            "ATTACK_POINTS": 20,
+            "BLOCKING_POINTS": 10,
         }
 
         score = 0
@@ -1219,32 +1219,29 @@ class Game:
             self.eval_by_depth[depth] = 0
         self.eval_by_depth[depth] += 1
 
-        # Base case: if the search has reached maximum depth or the game is finished
+        # Base case: if the search has reached maximum depth, the game is finished or is running out of time
         if depth == 0 or self.is_finished() or remaining_time <= 0:
             return self.evaluate_board(), None
+        else:
+            # Update non_leaf_nodes for branching factor calculation
+            self.non_leaf_nodes += 1
         """
             1.Generate all the possible children/combination from current node
             2.Simulate the game after making the move
             3.Try to perform the move and skip if it's not valid
             4.Appending the move and the simulated game as a child into the children list
         """
-        children = [
-            self.clone_and_move(move)
-            for move in self.move_candidates()
-            if self.clone_and_move(move)
-        ]
-
-        # Update non_leaf_nodes for branching factor calculation
-        if children:
-            self.non_leaf_nodes += 1
 
         # Maximizing player's turn
         if is_maximizing:
             max_eval = float("-inf")
-
-            # Evaluate the children
-            for child in children:
-                move, simulated_game = child
+            for move in self.move_candidates():
+                # Simulate the game after making the move
+                simulated_game = self.clone()
+                # Try to perform the move and skip if it's not valid
+                success, _ = simulated_game.perform_move(move)
+                if not success:
+                    continue
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -1267,10 +1264,13 @@ class Game:
         # Minimizing player's turn
         else:
             min_eval = float("inf")
-
-            # Evaluate the children
-            for child in children:
-                move, simulated_game = child
+            for move in self.move_candidates():
+                # Simulate the game after making the move
+                simulated_game = self.clone()
+                # Try to perform the move and skip if it's not valid
+                success, _ = simulated_game.perform_move(move)
+                if not success:
+                    continue
                 # Calculate the remaining time left
                 elapsed_seconds = (datetime.now() - start_time).total_seconds()
                 remaining_time = remaining_time - elapsed_seconds
@@ -1289,13 +1289,6 @@ class Game:
                     if beta <= alpha:
                         break
             return min_eval, best_move
-
-    def clone_and_move(self, move):
-        simulated_game = self.clone()
-        success, _ = simulated_game.perform_move(move)
-        if success:
-            return move, simulated_game
-        return None
 
     def post_move_to_broker(self, move: CoordPair):
         """Send a move to the game broker."""
