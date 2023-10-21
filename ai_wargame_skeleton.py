@@ -254,6 +254,7 @@ class Options:
     max_turns: int | None = 100
     randomize_moves: bool = True
     broker: str | None = None
+    heuristic: int | None = 0
 
 
 ##############################################################################################################
@@ -285,6 +286,19 @@ class Game:
     """Check if player's AI unit is self-destructed """
     _attacker_ai_self_destructed: bool = False
     _defender_ai_self_destructed: bool = False
+
+    # Add attributes for statistics tracking
+    heuristic_score: int = 0
+    time_taken: float = 0
+    total_nodes: int = 0
+    eval_by_depth = {}
+    non_leaf_nodes: int = 0
+
+    # reset statistics
+    def reset_statistics(self):
+        self.total_nodes = 0
+        self.eval_by_depth.clear()
+        self.non_leaf_nodes = 0
 
     def __post_init__(self):
         """Automatically called after class init to set up the default board state."""
@@ -418,13 +432,6 @@ class Game:
 
         # If T = S, the action is self-destruction
         if coords.src == coords.dst:
-            # Prevent AI from self-destructing
-            if self.options.game_type in [
-                GameType.AttackerVsComp,
-                GameType.CompVsDefender,
-                GameType.CompVsComp,
-            ]:
-                return (False, "AI cannot self-destruct")
             return self.self_destruct(coords.src)
 
         # If the target T is an empty cell, the action is movement
@@ -472,7 +479,6 @@ class Game:
         global filename
         actionInfo = "\n------------------------\n"
         actionInfo += f"Turn #{self.turns_played}\n"
-        actionInfo += f"{self.next_player.name}\n"
         with open(filename, "a") as file:
             file.write(actionInfo)
 
@@ -527,6 +533,11 @@ class Game:
         """Allows the human player to make a move in the game."""
 
         global filename  # Use the global variable 'filename' for recording actions
+
+        # Write into file who's turn it is
+        actionInfo = f"Turn: {self.next_player.name}\n"
+        with open(filename, "a") as file:
+            file.write(actionInfo)
 
         while True:
             try:
@@ -630,37 +641,106 @@ class Game:
         # Get the suggested move for the computer
         mv = self.suggest_move()
 
-        # If a move is suggested
-        if mv is not None:
-            # If the game is done because of the ai passes the allowed time
-            if self.is_finished():
-                if self.next_player == Player.Attacker:
-                    print("Defender wins due to AI time penalty!")
-                else:
-                    print("Attacker wins due to AI time penalty!")
-                return None
-            else:
-                # Try to perform the move
-                (success, result) = self.perform_move(mv)
+        # If no move is suggested or the game is finished, handle the end of the game
+        if mv is None or self.is_finished():
+            self.handle_game_end()
+            return None
 
-                # If the move is successful
-                if success:
-                    print(f"Computer {self.next_player.name}: ", end="")
-                    print(result)
-                    # Proceed to the next turn
-                    self.next_turn()
-                else:
-                    # Handle the case where the AI generates an illegal action
-                    print("AI generated an illegal action!")
-                    # Determine the winner based on the current player (the computer)
-                    if self.next_player == Player.Attacker:
-                        print("Defender wins due to AI illegal action!")
-                        self.is_finished()
-                    else:
-                        print("Attacker wins due to AI illegal action!")
-                        self.is_finished()
-                    return None
+        # Try to perform the move
+        (success, result) = self.perform_move(mv)
+
+        # If the move is successful, print and save statistics, then proceed to the next turn
+        if success:
+            print(f"Computer {self.next_player.name}: {result}")
+            self.print_cumulative_info()
+            self.write_statistics_to_file(result)
+            self.next_turn()
+        else:
+            # Handle the case where the AI generates an illegal action
+            self.handle_illegal_action()
+
         return mv
+
+    def handle_game_end(self):
+        """Handle the end of the game due to AI errors."""
+        if self.next_player == Player.Attacker:
+            print("Defender wins due to AI time penalty!")
+        else:
+            print("Attacker wins due to AI time penalty!")
+
+    def handle_illegal_action(self):
+        """Handle the case where the AI generates an illegal action."""
+        print("AI generated an illegal action!")
+        if self.next_player == Player.Attacker:
+            print("Defender wins due to AI illegal action!")
+        else:
+            print("Attacker wins due to AI illegal action!")
+        self.is_finished()
+
+    def write_statistics_to_file(self, result):
+        """Write the game statistics to a file."""
+        with open(filename, "a") as file:
+            stats = [
+                f"Turn: Computer {self.next_player.name}",
+                f"{result}",
+                f"\t{self.board_to_string()}",
+                f"Heuristic Score: {self.heuristic_score}",
+                f"Time for this action: {self.time_taken:.2f} sec",
+                f"Cumulative evals: {self.format_number(self.total_nodes)}",
+                "Cumulative evals by depth: "
+                + " ".join(
+                    [
+                        f"{depth}={self.format_number(count)}"
+                        for depth, count in self.eval_by_depth.items()
+                    ]
+                ),
+                "Cumulative % evals by depth: "
+                + " ".join(
+                    [
+                        f"{depth}={count/sum(self.eval_by_depth.values())*100:.1f}%"
+                        for depth, count in self.eval_by_depth.items()
+                    ]
+                ),
+                f"Average branching factor: {self.get_average_branching_factor():.1f}",
+            ]
+            file.write("\n".join(stats))
+
+    def print_cumulative_info(self):
+        print(f"Cumulative evals: {self.total_nodes}")
+
+        # Evaluations by depth
+        eval_by_depth_str = " ".join(
+            [
+                f"{depth}={self.format_number(count)}"
+                for depth, count in self.eval_by_depth.items()
+            ]
+        )
+        print(f"Cumulative evals by depth: {eval_by_depth_str}")
+
+        # Percentage evaluations by depth
+        percentages_by_depth_str = " ".join(
+            [
+                f"{depth}={count/sum(self.eval_by_depth.values())*100:.1f}%"
+                for depth, count in self.eval_by_depth.items()
+            ]
+        )
+        print(f"Cumulative % evals by depth: {percentages_by_depth_str}")
+
+        # Average branching factor (assuming it's calculated and stored in self.avg_branching_factor)
+        print(f"Average branching factor: {self.get_average_branching_factor():.1f}")
+
+    def format_number(self, num):
+        if num < 1_000:
+            return str(num)
+        elif num < 1_000_000:
+            return f"{num/1_000:.1f}k"
+        else:
+            return f"{num/1_000_000:.1f}M"
+
+    def get_average_branching_factor(self):
+        if self.non_leaf_nodes == 0:
+            return 0
+        return (self.total_nodes - 1) / self.non_leaf_nodes
 
     def has_winner(self) -> Player | None:
         """Check if the game is over and returns winner."""
@@ -772,15 +852,6 @@ class Game:
                     move.dst = src
                     yield move.clone()
 
-    # def random_move(self) -> Tuple[int, CoordPair | None, float]:
-    #     """Returns a random move."""
-    #     move_candidates = list(self.move_candidates())
-    #     random.shuffle(move_candidates)
-    #     if len(move_candidates) > 0:
-    #         return 0, move_candidates[0], 1
-    #     else:
-    #         return 0, None, 0
-
     def suggest_move(self) -> CoordPair | None:
         """
         Suggest the best move for the current player using the Minimax algorithm with or without Alpha-Beta pruning.
@@ -789,41 +860,34 @@ class Game:
         - The best move as a CoordPair or None if no valid move is found.
         """
 
-        # Record the start time to calculate the time taken by the algorithm
+        # Helper function to calculate the adjusted remaining time
+        def calculate_remaining_time(elapsed: float, max_time: float) -> float:
+            remaining = max_time - elapsed
+            # Adjust the remaining time to ensure the AI stops searching in time
+            return remaining * 0.93
+
         start_time = datetime.now()
-        # Calculate the remaining time
-        elapsed_seconds = 0
-        remaining_seconds = self.options.max_time - elapsed_seconds
-        new_remaining_seconds = remaining_seconds * 0.9
+        # set boolean value for the current player is maximizing or minimizing
+        is_maximizing = self.next_player == Player.Attacker
 
-        # Check if maximizing for attacker
-        if self.next_player == Player.Attacker:
-            # Use the Minimax algorithm with Alpha-Beta pruning to get the best move and its heuristic score
-            (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth,
-                float("-inf"),
-                float("inf"),
-                True,
-                self.options.alpha_beta,
-                new_remaining_seconds,
-            )
-        else:
-            # Use just the Minimax algorithm to get the best move and its heuristic score
-            # Note: You'll need to implement the minimax method without alpha-beta pruning
-            (score, move) = self.minimax_alpha_beta(
-                self.options.max_depth,
-                float("-inf"),
-                float("inf"),
-                False,
-                self.options.alpha_beta,
-                new_remaining_seconds,
-            )
+        # Calculate the remaining time for the AI to make a decision
+        adjusted_remaining_time = calculate_remaining_time(0, self.options.max_time)
 
-        # Calculate the time taken by the algorithm
+        # Use the Minimax algorithm to get the best move and its heuristic score
+        score, move = self.minimax_alpha_beta(
+            self.options.max_depth,
+            float("-inf"),
+            float("inf"),
+            is_maximizing,
+            self.options.alpha_beta,
+            adjusted_remaining_time,
+        )
+
         elapsed_seconds = (datetime.now() - start_time).total_seconds()
 
+        # Check if the AI exceeded the maximum allowed time and disable the AI for the current player
         if elapsed_seconds > self.options.max_time:
-            if self.next_player == Player.Attacker:
+            if is_maximizing:
                 self._attacker_has_ai = False
             else:
                 self._defender_has_ai = False
@@ -833,29 +897,206 @@ class Game:
 
         # Print the heuristic score of the best move and the time taken by the algorithm
         print(f"Heuristic score: {score}")
-        print(f"Elapsed time: {elapsed_seconds:0.2f}s")
+        print(f"Time for this action: {elapsed_seconds:.2f} sec")
+        # Record statistics
+        self.heuristic_score = score
+        self.time_taken = elapsed_seconds
 
-        # Return the best move
         return move
 
-    def evaluate_board(self):
-        # Calculate the weighted sum of Player 1's units
-        score_p1 = (
-            3 * self.count_units(UnitType.Virus, Player.Attacker)
-            + 3 * self.count_units(UnitType.Tech, Player.Attacker)
-            + 3 * self.count_units(UnitType.Firewall, Player.Attacker)
-            + 3 * self.count_units(UnitType.Program, Player.Attacker)
-            + 9999 * self.count_units(UnitType.AI, Player.Attacker)
+    def heuristic_zero(self, player: Player) -> int:
+        """
+        Evaluate the score of a player based on the number of units they have.
+
+        Args:
+        - player: The player whose score is to be evaluated.
+
+        Returns:
+        - int: The total score for the player based on the number of units.
+        """
+
+        # Dictionary mapping unit types to their respective score multipliers
+        UNIT_SCORE_MULTIPLIERS = {
+            UnitType.Virus: 3,
+            UnitType.Tech: 3,
+            UnitType.Firewall: 3,
+            UnitType.Program: 3,
+            UnitType.AI: 9999,
+        }
+
+        # Calculate the total score by multiplying the count of each unit type by its score multiplier
+        score = sum(
+            UNIT_SCORE_MULTIPLIERS[unit_type] * self.count_units(unit_type, player)
+            for unit_type in UNIT_SCORE_MULTIPLIERS
         )
-        # Calculate the weighted sum of Player 2's units
-        score_p2 = (
-            3 * self.count_units(UnitType.Virus, Player.Defender)
-            + 3 * self.count_units(UnitType.Tech, Player.Defender)
-            + 3 * self.count_units(UnitType.Firewall, Player.Defender)
-            + 3 * self.count_units(UnitType.Program, Player.Defender)
-            + 9999 * self.count_units(UnitType.AI, Player.Defender)
-        )
-        return score_p1 - score_p2
+
+        return score
+
+    def heuristic_one(self, player: Player) -> int:
+        """
+        Evaluate the total score for a player based on the total health of their units.
+
+        Args:
+        - player: The player whose score is to be evaluated.
+
+        Returns:
+        - int: The total score for the player.
+        """
+
+        # Define multipliers for each unit type in a dictionary
+        UNIT_MULTIPLIERS = {
+            UnitType.AI: 9999,
+            UnitType.Virus: 60,
+            UnitType.Tech: 60,
+            UnitType.Firewall: 30,
+            UnitType.Program: 30,
+        }
+
+        score = 0
+
+        # Iterate through each unit of the player
+        for _, unit in self.player_units(player):
+            # Add to the score based on unit's health multiplied by its type's multiplier
+            score += UNIT_MULTIPLIERS[unit.type] * unit.health
+
+        return score
+
+    def heuristic_two(self, player: Player) -> int:
+        """
+        Evaluate the total score for a player based on the positioning and health of all their units.
+
+        Args:
+        - player: The player whose score is to be evaluated.
+
+        Returns:
+        - int: The total score for the player.
+        """
+        score = 0
+        ai_multiplier = 1000
+        virus_multiplier = tech_multiplier = 7
+        program_multiplier = firewall_multiplier = 5
+        attack_points = healing_points = 1
+        blocking_points = 1
+        # Calculate the score for player
+        for src_coord, unit in self.player_units(player):
+            match unit.type:
+                case UnitType.AI:
+                    score += ai_multiplier * unit.health
+                    # Provide points if the AI is adjacent to ally that requires healing
+                    for dst_coord in src_coord.iter_adjacent():
+                        dst_unit = self.get(dst_coord)
+                        if dst_unit is None:
+                            continue
+                        # Give points for healing
+                        if dst_unit.player == unit.player and (
+                            dst_unit.type == UnitType.Virus or dst_unit == UnitType.Tech
+                        ):
+                            if dst_unit.health < 9:
+                                score += healing_points
+                        # Provide points for attacking
+                        if (
+                            dst_unit.player != unit.player
+                            and dst_unit.type == UnitType.Firewall
+                        ):
+                            score += attack_points
+                        elif dst_unit.player != unit.player:
+                            score += attack_points * 3
+                case UnitType.Virus:
+                    score += virus_multiplier * unit.health
+                    # Provide points if the virus is engaging in combat
+                    for dst_coord in src_coord.iter_adjacent():
+                        dst_unit = self.get(dst_coord)
+                        if dst_unit is None:
+                            continue
+                        if (
+                            dst_unit.player != unit.player
+                            and dst_unit.type == UnitType.AI
+                        ):
+                            score += attack_points * ai_multiplier
+                            break
+                        elif dst_unit.player != unit.player and (
+                            dst_unit.type == UnitType.Tech
+                            or dst_unit.type == UnitType.Program
+                        ):
+                            score += attack_points * 6
+                        elif dst_unit.player != unit.player:  # Otherwise firewall
+                            score += attack_points
+                case UnitType.Tech:
+                    score += tech_multiplier * unit.health
+                    # Provide points if the tech is adjacent to ally that requires healing
+                    for dst_coord in src_coord.iter_adjacent():
+                        dst_unit = self.get(dst_coord)
+                        if dst_unit is None:
+                            continue
+                        if (
+                            dst_unit.player == unit.player
+                            and dst_unit.type != UnitType.Virus
+                            and dst_unit != UnitType.Tech
+                        ):
+                            if dst_unit.health < 9:
+                                score += healing_points * 3
+                        elif (
+                            dst_unit.player != unit.player
+                            and dst_unit.type == UnitType.Virus
+                        ):
+                            score += attack_points * 6
+                        elif dst_unit.player != unit.player:  # Other units
+                            score += attack_points
+                case UnitType.Firewall:
+                    score += firewall_multiplier * unit.health
+                    # Provide points if the firewall is engaged in combat
+                    for dst_coord in src_coord.iter_adjacent():
+                        dst_unit = self.get(dst_coord)
+                        if dst_unit is None:
+                            continue
+                        # if dst_unit.player != unit.player and (
+                        #     dst_unit.type == UnitType.AI
+                        #     or dst_unit.type == UnitType.Program
+                        #     or dst_unit.type == UnitType.Firewall
+                        # ):
+                        #     score += blocking_points
+                        if dst_unit.player != unit.player:
+                            score += attack_points
+                case UnitType.Program:
+                    score += program_multiplier * unit.health
+                    # Provide points if the program is engaged in combat
+                    for dst_coord in src_coord.iter_adjacent():
+                        dst_unit = self.get(dst_coord)
+                        if dst_unit is None:
+                            continue
+                        if (
+                            dst_unit.player != unit.player
+                            and dst_unit.type == UnitType.Firewall
+                        ):
+                            score += attack_points
+                        elif dst_unit.player != unit.player:
+                            score += attack_points * 3
+        return score
+
+    def evaluate_board(self) -> int:
+        """
+        Evaluate the board based on the heuristic chosen by the user.
+
+        Returns:
+        - int: The difference in scores between the attacker and defender.
+        """
+
+        # Map heuristic choices to their respective functions
+        HEURISTIC_FUNCTIONS = {
+            0: self.heuristic_zero,
+            1: self.heuristic_one,
+            2: self.heuristic_two,
+        }
+
+        # Get the appropriate heuristic function based on user's choice
+        heuristic_func = HEURISTIC_FUNCTIONS.get(self.options.heuristic, lambda _: 0)
+
+        # Calculate scores for both players using the chosen heuristic
+        score_attacker = heuristic_func(Player.Attacker)
+        score_defender = heuristic_func(Player.Defender)
+
+        # Return the difference in scores
+        return score_attacker - score_defender
 
     def count_units(self, unit_type: UnitType, player: Player) -> int:
         """Count the number of units of a specific type and player on the board."""
@@ -892,11 +1133,27 @@ class Game:
         - The heuristic value of the board after the best move.
         - The best move as a CoordPair.
         """
+        self.total_nodes += 1
         start_time = datetime.now()
         best_move = None
-        # Base case: if the search has reached maximum depth or the game is finished
+
+        # Update evals_by_depth
+        if depth not in self.eval_by_depth:
+            self.eval_by_depth[depth] = 0
+        self.eval_by_depth[depth] += 1
+
+        # Base case: if the search has reached maximum depth, the game is finished or is running out of time
         if depth == 0 or self.is_finished() or remaining_time <= 0:
             return self.evaluate_board(), None
+        else:
+            # Update non_leaf_nodes for branching factor calculation
+            self.non_leaf_nodes += 1
+        """
+            1.Generate all the possible children/combination from current node
+            2.Simulate the game after making the move
+            3.Try to perform the move and skip if it's not valid
+            4.Appending the move and the simulated game as a child into the children list
+        """
 
         # Maximizing player's turn
         if is_maximizing:
@@ -923,7 +1180,7 @@ class Game:
                 # Update alpha and prune the search tree if necessary
                 if alpha_beta:
                     alpha = max(alpha, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return max_eval, best_move
 
@@ -952,7 +1209,7 @@ class Game:
                 # Update beta and prune the search tree if necessary
                 if alpha_beta:
                     beta = min(beta, eval_value)
-                    if beta < alpha:
+                    if beta <= alpha:
                         break
             return min_eval, best_move
 
@@ -1126,7 +1383,10 @@ class Game:
         # Remove the self-destructed unit from the board
         self.set(coord, None)
 
-        return True, f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}"
+        return (
+            True,
+            f"{unit.player.name}'s {unit.type.name} self-destructed at {coord}",
+        )
 
     def board_belongs_to_current_player(self, coord: Coord) -> bool:
         """Check if the unit at the given coordinates belongs to the current player."""
@@ -1148,12 +1408,12 @@ class Game:
 ##############################################################################################################
 def choose_game_mode_interactive():
     print("------------------------------------")
-    print("Welcome to the AI Wargame!")
-    print("Choose a game mode:")
-    print("1. AttackerVsDefender")
-    print("2. AttackerVsComp")
-    print("3. CompVsDefender")
-    print("4. CompVsComp")
+    print("Welcome to the AI War Game!")
+    print("Choose a game mode: ")
+    print("1. Attacker VS Defender")
+    print("2. Attacker VS Computer")
+    print("3. Computer VS Defender")
+    print("4. Computer VS Computer")
     choice = int(input("Enter your choice (1-4): "))
     while choice not in [1, 2, 3, 4]:
         print("Invalid choice. Please choose between 1 and 4.\n")
@@ -1185,10 +1445,10 @@ def choose_alpha_beta() -> bool:
 def choose_allowed_time() -> float:
     while True:
         user_input = input(
-            "Maximum allowed seconds for the computer to return a move (Default: 6): "
+            "Enter maximum allowed seconds for the computer to return a move (Default: 5): "
         )
         if user_input.strip() == "":
-            return 6
+            return 5
         try:
             user_input = float(user_input)
             if user_input > 0:
@@ -1201,7 +1461,7 @@ def choose_allowed_time() -> float:
 
 def choose_max_turns() -> int:
     while True:
-        user_input = input("Maximum number of turns (Default:100): ")
+        user_input = input("Enter maximum number of turns (Default:100): ")
         if user_input.strip() == "":
             return 100
         try:
@@ -1216,15 +1476,32 @@ def choose_max_turns() -> int:
 
 def choose_max_depth() -> int:
     while True:
-        user_input = input("Max depth (Default: 3): ")
+        user_input = input("Enter max depth (Default: 4): ")
         if user_input.strip() == "":
-            return 3
+            return 4
         try:
             user_input = int(user_input)
             if user_input > 0:
                 return user_input
             else:
                 print("Invalid input: Please choose a number above 0.\n")
+        except ValueError:
+            print("Invalid input: Please enter a valid number. \n")
+
+
+def choose_heuristic():
+    while True:
+        user_input = input("Enter heuristic e(0, 1 or 2)(Default: 0): ")
+        if user_input.strip() == "":
+            return 0
+        try:
+            user_input = int(user_input)
+            if user_input >= 0 and user_input <= 2:
+                return user_input
+            else:
+                print(
+                    "Invalid input: Please choose a number between 0 and 2 inclusive.\n"
+                )
         except ValueError:
             print("Invalid input: Please enter a valid number. \n")
 
@@ -1275,23 +1552,30 @@ def main():
     max_allowed_time = 0
     max_depth = 0
     max_turns = choose_max_turns()
+    heuristic = 0
     # check if computer is playing
     if chosen_game_type != GameType.AttackerVsDefender:
         max_allowed_time = choose_allowed_time()
         max_depth = choose_max_depth()
         include_alpha_beta = choose_alpha_beta()
+        heuristic = choose_heuristic()
     options.alpha_beta = include_alpha_beta
     options.max_time = max_allowed_time
     options.max_turns = max_turns
     options.max_depth = max_depth
+    options.heuristic = heuristic
 
     # create a new game
     game = Game(options=options)
+
+    # reset statistics for every game
+    game.reset_statistics()
 
     # creating the output file
     b = game.options.alpha_beta
     t = game.options.max_time
     m = game.options.max_turns
+    e = game.options.heuristic
     global filename
     filename = f"gameTrace-{b}-{t}-{m}.txt"
 
@@ -1300,8 +1584,15 @@ def main():
     game_parameters += f"a) Timeout (seconds): {t}\n"
     game_parameters += f"b) Max number of turns: {m}\n"
     game_parameters += f"c) Alpha-beta: {b}\n"
-    game_parameters += f"d) Play Mode: Player 1 = H & Player 2 = H\n"
-    game_parameters += f"e) Name of heuristic: \n"
+    if chosen_game_type == GameType.AttackerVsDefender:
+        game_parameters += f"d) Play Mode: Player 1 = H & Player 2 = H\n"
+    elif chosen_game_type == GameType.AttackerVsComp:
+        game_parameters += f"d) Play Mode: Player 1 = H & Player 2 = AI\n"
+    elif chosen_game_type == GameType.CompVsDefender:
+        game_parameters += f"d) Play Mode: Player 1 = AI & Player 2 = H\n"
+    else:
+        game_parameters += f"d) Play Mode: Player 1 = AI & Player 2 = AI\n"
+    game_parameters += f"e) Name of heuristic: e{e}\n"
     init_conf = f"\n"
     init_conf += f"2. The initial configuration of the board:\n"
     init_conf += f"\t{game.board_to_string()} \n"
@@ -1340,7 +1631,7 @@ def main():
             if move is not None:
                 game.post_move_to_broker(move)
             else:
-                # print("Computer doesn't know what to do!!!")
+                print("Computer doesn't know what to do!!!")
                 exit(1)
 
 
