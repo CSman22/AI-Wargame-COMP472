@@ -26,3 +26,12 @@ AI Wargame1 is a 2-player game played by an attacker (a) and a defender (d) on a
 | C | dF9 |  .  |  .  |  .  | aP9 |
 | D |  .  |  .  |  .  | aF9 | aV9 |
 | E |  .  |  .  | aP9 | aV9 | aA9 |
+
+## How to run the program
+To run the program make sure you have Python installed on your machine. If not follow the instructions from this [link](https://realpython.com/installing-python/#how-to-install-python-on-windows) based on your operating system. <br>
+
+Open up the program in the IDE of your choice and run the following command:
+```
+python  ai_wargame_skeleton.py
+```
+
