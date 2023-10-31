@@ -1,6 +1,6 @@
 # AI-Wargame-COMP472
 AI Wargame1 is a 2-player game played by an attacker (a) and a defender (d) on a 5 × 5 board. 
-In this project, we tackle the concept of the Minimax Search Algorithm by implementing it into a computer player.
+In this project, we tackle the concept of the Minimax Search Algorithm by implementing a computer player.
 
 ## Game Rule Overview
 - Each player has 6 units on the board.
